@@ -92,7 +92,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 }));
 
 // API Routes - Only keeping test endpoint for now
-app.use('/api', require('./routes/test'));
+app.use('/api', require('./routes/electricity-routes'));
 
 /**
  * @openapi

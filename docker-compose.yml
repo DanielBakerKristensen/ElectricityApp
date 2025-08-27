@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  database:
+    image: postgres:16-alpine
+    container_name: electricity-db
+    environment:
+      POSTGRES_DB: electricity_app
+      POSTGRES_USER: electricity_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-electricity_password}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U electricity_user -d electricity_app"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"
+    networks:
+      - electricity-network
+    restart: unless-stopped
+
+  # Node.js Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: production
+    env_file:
+      - ./.env
+    container_name: electricity-backend
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - NPM_CONFIG_UPDATE_NOTIFIER=false
+      - DB_HOST=database
+      - DB_PORT=5432
+      - DB_NAME=electricity_app
+      - DB_USER=electricity_user
+      - DB_PASSWORD=${DB_PASSWORD:-electricity_password}
+      - ELOVERBLIK_REFRESH_TOKEN=${ELOVERBLIK_REFRESH_TOKEN}
+      - ELOVERBLIK_METERING_POINTS=${ELOVERBLIK_METERING_POINTS}
+      - JWT_SECRET=${JWT_SECRET}
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    working_dir: /app
+    command: npm start
+    networks:
+      - electricity-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/health', (r) => {if(r.statusCode !== 200) throw new Error()}).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: electricity-frontend
+    environment:
+      - NODE_ENV=development
+      - REACT_APP_API_URL=http://backend:5000/api
+      - CHOKIDAR_USEPOLLING=true
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - electricity-network
+    restart: unless-stopped
+
+networks:
+  electricity-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  node_modules:

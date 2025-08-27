@@ -1,0 +1,63 @@
+# Node.js dependencies
+node_modules/
+npm-debug.log
+yarn-debug.log
+
+# Build outputs
+build/
+dist/
+out/
+
+# Test and debug artifacts
+test/
+tests/
+debug/
+*.log
+
+# IDE/editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Version control
+.git/
+.gitignore
+.svn/
+.hg/
+
+# Environment and secrets
+.env
+.env.*
+*.env
+*.pem
+*.key
+*.crt
+config.local.*
+*.local.yml
+
+# Temporary and local files
+tmp/
+temp/
+*.tmp
+.local/
+local/
+
+# Documentation
+README*
+*.md
+docs/
+
+# Docker files
+Dockerfile*
+docker-compose*
+
+# Project-specific
+*.example
+
+# Database initialization scripts (if not needed in image)
+database/
+
+# Exclude frontend and backend Dockerfiles from ignore
+!frontend/Dockerfile
+!backend/Dockerfile

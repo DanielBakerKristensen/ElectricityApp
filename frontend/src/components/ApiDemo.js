@@ -8,28 +8,51 @@ const ApiDemo = () => {
     const [error, setError] = useState(null);
 
     const fetchData = async () => {
-        setLoading(true);
-        setError(null);
         try {
-            // Calculate date range (9 days ago to 2 days ago)
+            setLoading(true);
+            setError(null);
+            
+            const formatDate = (date) => date.toISOString().split('T')[0];
+            
+            // Set date range (last 7 days)
             const endDate = new Date();
-            endDate.setDate(endDate.getDate() - 2); // 2 days ago
+            endDate.setDate(endDate.getDate() - 1); // Yesterday
             const startDate = new Date(endDate);
             startDate.setDate(startDate.getDate() - 7); // 7 days before that
 
-            const formatDate = (date) => date.toISOString().split('T')[0];
+            const apiUrl = `http://localhost:5000/api/test?dateFrom=${formatDate(startDate)}&dateTo=${formatDate(endDate)}`;
+            console.log('Fetching data from:', apiUrl);
 
-            console.log('Fetching data from', formatDate(startDate), 'to', formatDate(endDate));
+            const response = await fetch(apiUrl, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include'
+            });
 
-            const response = await fetch(`/api/test-data?dateFrom=${formatDate(startDate)}&dateTo=${formatDate(endDate)}`);
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                const errorText = await response.text();
+                console.error('API Error:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    error: errorText,
+                    url: apiUrl
+                });
+                throw new Error(`API Error: ${response.status} - ${response.statusText}`);
             }
+
             const data = await response.json();
-            setApiData(data);
+            console.log('API Response:', data);
+
+            if (!data.success) {
+                throw new Error(data.message || 'API request was not successful');
+            }
+
+            setApiData(data.data);
         } catch (err) {
-            console.error('Error fetching data:', err);
-            setError('Failed to fetch data. Please try again later.');
+            console.error('Error in fetchData:', err);
+            setError(err.message || 'Failed to fetch data. Please check the console for details.');
         } finally {
             setLoading(false);
         }

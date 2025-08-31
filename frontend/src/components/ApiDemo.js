@@ -20,7 +20,7 @@ const ApiDemo = () => {
             const startDate = new Date(endDate);
             startDate.setDate(startDate.getDate() - 7); // 7 days before that
 
-            const apiUrl = `http://localhost:5000/api/test?dateFrom=${formatDate(startDate)}&dateTo=${formatDate(endDate)}`;
+            const apiUrl = `http://localhost:5000/api/v1/test/eloverblik?dateFrom=${formatDate(startDate)}&dateTo=${formatDate(endDate)}`;
             console.log('Fetching data from:', apiUrl);
 
             const response = await fetch(apiUrl, {

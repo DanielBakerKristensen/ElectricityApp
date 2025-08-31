@@ -48,11 +48,6 @@ Thumbs.db
 # Local development
 *.local
 
-# Database
-*.sqlite
-*.sqlite3
-*.db
-
 # Logs
 logs
 *.log
@@ -60,8 +55,3 @@ logs
 # Environment specific
 .env.development
 .env.production
-
-# Elastic Beanstalk Files
-.elasticbeanstalk/*
-!.elasticbeanstalk/*.cfg.yml
-!.elasticbeanstalk/*.global.yml

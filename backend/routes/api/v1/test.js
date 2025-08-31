@@ -1,7 +1,7 @@
 const express = require('express');
-const axios = require('axios');
 const router = express.Router();
-const logger = require('../utils/logger');
+const axios = require('axios');
+const logger = require('../../../utils/logger');
 
 const ELOVERBLIK_BASE_URL = 'https://api.eloverblik.dk/customerapi/api';
 const REFRESH_TOKEN = process.env.ELOVERBLIK_REFRESH_TOKEN;
@@ -24,8 +24,8 @@ async function getAccessToken() {
 }
 
 /**
- * @openapi
- * /api/test:
+ * @swagger
+ * /api/v1/test/eloverblik:
  *   get:
  *     summary: Test endpoint for Eloverblik API
  *     description: Fetches consumption data from Eloverblik API
@@ -53,7 +53,7 @@ async function getAccessToken() {
  *       500:
  *         description: Error fetching data from Eloverblik
  */
-router.get('/', async (req, res) => {
+router.get('/eloverblik', async (req, res) => {
     const { dateFrom, dateTo } = req.query;
 
     if (!dateFrom || !dateTo) {
@@ -67,6 +67,10 @@ router.get('/', async (req, res) => {
     try {
         logger.info(`Fetching data from ${dateFrom} to ${dateTo} for metering point ${METERING_POINT_ID}`);
         
+        if (!REFRESH_TOKEN || !METERING_POINT_ID) {
+            throw new Error('Missing required environment variables: ELOVERBLIK_REFRESH_TOKEN or ELOVERBLIK_METERING_POINTS');
+        }
+
         // Get access token
         const accessToken = await getAccessToken();
         
@@ -99,24 +103,37 @@ router.get('/', async (req, res) => {
         const errorData = error.response?.data || {};
         const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
         
-        logger.error('Error in test endpoint:', {
-            message: errorMessage,
-            status: statusCode,
-            error: errorData,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        logger.error('Error in Eloverblik API call:', {
+            statusCode,
+            error: errorMessage,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+            details: errorData
         });
 
         res.status(statusCode).json({
             success: false,
             error: 'Failed to fetch data from Eloverblik',
-            message: errorMessage,
-            ...(process.env.NODE_ENV === 'development' && {
-                details: errorData,
-                stack: error.stack
-            })
+            details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
         });
     }
 });
 
-// Export the router
+/**
+ * @swagger
+ * /api/v1/test/hello:
+ *   get:
+ *     summary: Simple hello endpoint
+ *     tags: [Test]
+ *     responses:
+ *       200:
+ *         description: Returns a hello message
+ */
+router.get('/hello', (req, res) => {
+    res.json({ 
+        message: 'Hello from the Electricity App API v1!',
+        version: 'v1',
+        timestamp: new Date().toISOString()
+    });
+});
+
 module.exports = router;

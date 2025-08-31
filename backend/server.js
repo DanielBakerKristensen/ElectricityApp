@@ -1,4 +1,5 @@
-require('dotenv').config({ path: '../.env' });
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -57,7 +58,11 @@ const swaggerOptions = {
       },
     ],
   },
-  apis: ['./routes/*.js'],
+  apis: [
+    './routes/api/v1/*.js',
+    './routes/api/v1/*.yaml',
+    './routes/api/v1/*.yml'
+  ],
 };
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
@@ -71,46 +76,74 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 }));
 
 // API Routes
-app.use('/api', require('./routes/electricity-routes'));
-app.use('/api/test', require('./routes/test'));
+app.use('/api/v1', require('./routes/api/v1'));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    version: '1.0.0'
   });
+});
+
+// Root endpoint redirects to API docs
+app.get('/', (req, res) => {
+  res.redirect('/api-docs');
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  logger.error(err.stack);
+  logger.error('Unhandled error:', {
+    message: err.message,
+    stack: err.stack,
+    url: req.originalUrl,
+    method: req.method,
+    params: req.params,
+    query: req.query,
+    body: req.body
+  });
+  
   res.status(500).json({
     error: 'Internal Server Error',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong!'
+    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong!',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
   });
 });
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).json({ error: 'Not Found' });
+  res.status(404).json({ 
+    error: 'Not Found',
+    message: `Cannot ${req.method} ${req.originalUrl}`
+  });
 });
 
 // Start server
 const PORT = process.env.PORT || 5000;
-const server = app.listen(PORT, () => {
-  logger.info(`Server running on port ${PORT}`);
-  
-  // Test database connection
-  testConnection()
-    .then(() => logger.info('Database connection established'))
-    .catch(err => logger.error('Database connection failed', err));
+const server = app.listen(PORT, async () => {
+  try {
+    await testConnection();
+    logger.info(`Server running on port ${PORT}`);
+    logger.info(`API Documentation available at http://localhost:${PORT}/api-docs`);
+  } catch (error) {
+    logger.error('Failed to start server:', error);
+    process.exit(1);
+  }
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   logger.error('Unhandled Rejection:', err);
+  // Close server & exit process
+  server.close(() => process.exit(1));
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught Exception:', err);
+  // Close server & exit process
   server.close(() => process.exit(1));
 });
 

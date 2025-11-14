@@ -3,8 +3,6 @@
   "version": "1.0.0",
   "description": "Demo scripts for electricity consumption app",
   "scripts": {
-    "demo-api": "node demo-api.js",
-    "demo-database": "node demo-database.js"
   },
   "dependencies": {
     "axios": "^1.7.9",

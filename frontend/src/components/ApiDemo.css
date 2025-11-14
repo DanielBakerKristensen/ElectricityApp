@@ -166,3 +166,22 @@
         width: 100%;
     }
 }
+
+/* Debug info styles */
+.debug-info {
+    padding: 15px;
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+    margin-top: 30px;
+    font-size: 12px;
+    border-radius: 5px;
+    border: 1px solid #444;
+    font-family: 'Courier New', monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.debug-info strong {
+    color: #4fc3f7;
+    font-size: 14px;
+}

@@ -316,18 +316,6 @@ const ApiDemo = () => {
                 </div>
             )}
 
-            {/* Debug Info */}
-            {apiData && (
-                <div style={{ padding: '10px', backgroundColor: '#f5f5f5', margin: '10px 0', fontSize: '12px' }}>
-                    <strong>Debug Info:</strong><br />
-                    Hourly data points: {hourlyData.length}<br />
-                    Daily range data points: {dailyRangeData.length}<br />
-                    {dailyRangeData.length > 0 && (
-                        <>Sample daily data: {JSON.stringify(dailyRangeData[0], null, 2)}</>
-                    )}
-                </div>
-            )}
-
             {/* Daily Range Chart */}
             <div className="chart-container">
                 {dailyRangeData.length > 0 ? (
@@ -439,6 +427,18 @@ const ApiDemo = () => {
                     </div>
                 )}
             </div>
+
+            {/* Debug Info */}
+            {apiData && (
+                <div className="debug-info">
+                    <strong>Debug Info:</strong><br />
+                    Hourly data points: {hourlyData.length}<br />
+                    Daily range data points: {dailyRangeData.length}<br />
+                    {dailyRangeData.length > 0 && (
+                        <>Sample daily data: {JSON.stringify(dailyRangeData[0], null, 2)}</>
+                    )}
+                </div>
+            )}
         </div>
     );
 };

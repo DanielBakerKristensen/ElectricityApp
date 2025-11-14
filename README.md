@@ -33,10 +33,36 @@ electricity-app/
 
 ## Getting Started
 
-1. Clone the repository
-2. Copy `.env.example` to `.env` and configure your settings
-3. Run with Docker: `docker-compose up -d`
-4. Access the app at `http://localhost:3000`
+**📖 For detailed setup instructions, see [SETUP.md](SETUP.md)**
+
+### Quick Start Options
+
+**Local Development:**
+```bash
+# 1. Install dependencies
+cd backend && npm install
+cd ../frontend && npm install
+
+# 2. Setup database and configure .env
+cp .env.local.example .env
+# Edit .env with your credentials
+
+# 3. Start services
+cd backend && npm start    # Terminal 1
+cd frontend && npm start   # Terminal 2
+```
+
+**Docker Deployment:**
+```bash
+# 1. Configure environment
+cp .env.docker.example .env
+# Edit .env with your credentials
+
+# 2. Start all services
+docker-compose up -d
+```
+
+Access the app at `http://localhost:3000`
 
 ## Configuration
 

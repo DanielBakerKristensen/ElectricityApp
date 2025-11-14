@@ -80,6 +80,7 @@ services:
     environment:
       - NODE_ENV=development
       - REACT_APP_API_URL=http://backend:5000/api
+      - REACT_APP_PROXY_TARGET=http://backend:5000
       - CHOKIDAR_USEPOLLING=true
     volumes:
       - ./frontend:/app

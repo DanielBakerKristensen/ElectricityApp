@@ -21,22 +21,35 @@ This guide covers both **local development** and **Docker deployment** setups.
 
 ### Option A: Local Development (Recommended for Development)
 
-**1. Clone and Install**
+**1. Quick Setup (Automated)**
 ```bash
+# Clone repository
 git clone <repository-url>
 cd ElectricityApp
 
-# Install backend dependencies
-cd backend
-npm install
+# Run setup script
+# On Linux/Mac:
+./setup-local.sh
 
-# Install frontend dependencies
-cd ../frontend
-npm install
+# On Windows:
+setup-local.bat
+```
+
+**2. Manual Setup (Alternative)**
+```bash
+# Copy environment template
+cp .env.local.example .env.local
+
+# Edit .env.local with your credentials
+# (DB_HOST is already set to localhost)
+
+# Install dependencies
+cd backend && npm install
+cd ../frontend && npm install
 cd ..
 ```
 
-**2. Setup PostgreSQL Database**
+**3. Setup PostgreSQL Database**
 ```bash
 # Create database (using psql or your preferred tool)
 createdb electricity_app
@@ -46,26 +59,12 @@ createuser electricity_user
 psql -U electricity_user -d electricity_app -f database/init.sql
 ```
 
-**3. Configure Environment**
-```bash
-# Copy example environment file
-cp .env.example .env
-
-# Edit .env with your settings:
-# - Set DB_HOST=localhost
-# - Set DB_PORT=5432
-# - Set DB_NAME=electricity_app
-# - Set DB_USER=electricity_user
-# - Set DB_PASSWORD=<your-password>
-# - Add your ELOVERBLIK_REFRESH_TOKEN
-# - Add your ELOVERBLIK_METERING_POINTS
-```
-
 **4. Start Services**
 ```bash
 # Terminal 1: Start Backend
 cd backend
 npm start
+# Backend automatically loads .env.local
 # Backend runs on http://localhost:5000
 
 # Terminal 2: Start Frontend
@@ -83,35 +82,41 @@ npm start
 
 ### Option B: Docker Deployment (Recommended for Production)
 
-**1. Clone Repository**
+**1. Quick Setup (Automated)**
 ```bash
+# Clone repository
 git clone <repository-url>
 cd ElectricityApp
+
+# Run setup script
+# On Linux/Mac:
+./setup-docker.sh
+
+# On Windows:
+setup-docker.bat
+
+# Edit .env.docker with your credentials
+# Then start services:
+docker-compose up -d
 ```
 
-**2. Configure Environment**
+**2. Manual Setup (Alternative)**
 ```bash
-# Copy example environment file
-cp .env.example .env
+# Clone repository
+git clone <repository-url>
+cd ElectricityApp
 
-# Edit .env with your settings:
-# - Set DB_HOST=database (Docker hostname)
-# - Set DB_PORT=5432
-# - Set DB_NAME=electricity_app
-# - Set DB_USER=electricity_user
-# - Set DB_PASSWORD=<your-password>
+# Copy environment template
+cp .env.docker.example .env.docker
+
+# Edit .env.docker with your settings:
+# - DB_HOST is already set to 'database' (Docker hostname)
 # - Add your ELOVERBLIK_REFRESH_TOKEN
 # - Add your ELOVERBLIK_METERING_POINTS
+# - Set a secure JWT_SECRET
 ```
 
-**3. Update Frontend Proxy (One-time setup)**
-```bash
-# Edit frontend/package.json
-# Change: "proxy": "http://localhost:5000"
-# To:     "proxy": "http://backend:5000"
-```
-
-**4. Start Docker Services**
+**3. Start Docker Services**
 ```bash
 # Build and start all services
 docker-compose up -d
@@ -164,19 +169,17 @@ RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
 ```
 
-### Frontend Proxy Configuration
+### Automatic Environment Detection
 
-**For Local Development:**
-```json
-// frontend/package.json
-"proxy": "http://localhost:5000"
-```
+The backend automatically detects whether it's running locally or in Docker and loads the appropriate environment file:
 
-**For Docker:**
-```json
-// frontend/package.json
-"proxy": "http://backend:5000"
-```
+- **Local Development**: Loads `.env.local` (DB_HOST=localhost)
+- **Docker**: Loads `.env.docker` (DB_HOST=database)
+- **Fallback**: Loads `.env` if specific file not found
+
+**Frontend Proxy** (already configured):
+- `frontend/package.json` has `"proxy": "http://localhost:5000"`
+- Works for both local and Docker (Docker maps backend:5000 to localhost:5000)
 
 ---
 
@@ -286,16 +289,23 @@ docker-compose up -d
 
 ## 🔄 Switching Between Local and Docker
 
+**No configuration changes needed!** The system automatically detects the environment.
+
 ### From Local to Docker
-1. Update .env: `DB_HOST=database`
-2. Update frontend/package.json: `"proxy": "http://backend:5000"`
-3. Run: `docker-compose up -d`
+```bash
+# Just stop local services and start Docker
+docker-compose up -d
+```
 
 ### From Docker to Local
-1. Update .env: `DB_HOST=localhost`
-2. Update frontend/package.json: `"proxy": "http://localhost:5000"`
-3. Stop Docker: `docker-compose down`
-4. Start local services (backend and frontend in separate terminals)
+```bash
+# Stop Docker and start local services
+docker-compose down
+cd backend && npm start    # Terminal 1
+cd frontend && npm start   # Terminal 2
+```
+
+The backend automatically loads the correct `.env.local` or `.env.docker` file based on the environment.
 
 ---
 

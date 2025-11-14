@@ -34,12 +34,13 @@ services:
       args:
         NODE_ENV: production
     env_file:
-      - ./.env
+      - ./.env.docker
     container_name: electricity-backend
     depends_on:
       database:
         condition: service_healthy
     environment:
+      - DOCKER_ENV=true
       - NODE_ENV=${NODE_ENV:-development}
       - NPM_CONFIG_UPDATE_NOTIFIER=false
       - DB_HOST=${DB_HOST}

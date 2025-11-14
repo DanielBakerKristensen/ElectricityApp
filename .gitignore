@@ -13,9 +13,10 @@ node_modules/
 /build
 /dist
 
-# Environment variables
+# Environment variables (keep templates, ignore actual configs)
 .env
 .env.local
+.env.docker
 .env.development.local
 .env.test.local
 .env.production.local

@@ -1,5 +1,17 @@
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '../.env') });
+const fs = require('fs');
+
+// Auto-detect environment and load appropriate .env file
+const isDocker = fs.existsSync('/.dockerenv') || process.env.DOCKER_ENV === 'true';
+const envFile = isDocker ? '.env.docker' : '.env.local';
+const envPath = path.join(__dirname, '..', envFile);
+
+// Fallback to .env if specific file doesn't exist
+const finalEnvPath = fs.existsSync(envPath) ? envPath : path.join(__dirname, '../.env');
+
+require('dotenv').config({ path: finalEnvPath });
+console.log(`🔧 Loaded environment from: ${path.basename(finalEnvPath)}`);
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');

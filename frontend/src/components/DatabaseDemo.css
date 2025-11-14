@@ -1,0 +1,254 @@
+.database-demo {
+    background-color: #282c34;
+    padding: 2rem;
+    border-radius: 8px;
+    color: white;
+    max-width: 1200px;
+    margin: 2rem auto;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.loading-spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 2rem auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.error {
+    color: #e74c3c;
+    background-color: #3a2e2e;
+    padding: 1rem;
+    border-radius: 4px;
+    border-left: 5px solid #e74c3c;
+}
+
+.error-message {
+    color: #e74c3c;
+    background-color: #3a2e2e;
+    padding: 1rem;
+    border-radius: 4px;
+    border-left: 5px solid #e74c3c;
+    margin-top: 1rem;
+}
+
+.retry-button, .fetch-button {
+    background-color: #3498db;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1rem;
+    margin-top: 1rem;
+    transition: background-color 0.3s ease;
+}
+
+.retry-button:hover, .fetch-button:hover {
+    background-color: #2980b9;
+}
+
+.fetch-button:disabled {
+    background-color: #7f8c8d;
+    cursor: not-allowed;
+}
+
+.chart-container {
+    background-color: #ffffff;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-top: 2rem;
+    border: 1px solid #e0e0e0;
+    color: #333;
+}
+
+.no-data {
+    text-align: center;
+    padding: 2rem;
+    color: #666;
+    font-style: italic;
+}
+
+.custom-tooltip {
+    background-color: white;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    color: #333;
+}
+
+.tooltip-date {
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.tooltip-time {
+    margin-bottom: 3px;
+}
+
+.tooltip-consumption {
+    color: #8884d8;
+    font-weight: 600;
+}
+
+.tooltip-quality {
+    font-size: 12px;
+    color: #666;
+}
+
+/* Range tooltip specific styles */
+.range-tooltip {
+    background-color: white;
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.range-tooltip-date {
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #263238;
+}
+
+.range-tooltip-item {
+    margin-bottom: 4px;
+}
+
+.range-tooltip-readings {
+    font-size: 12px;
+    color: #666;
+}
+
+/* Chart wrapper styles */
+.chart-wrapper {
+    width: 100%;
+    padding: 20px 0;
+    margin-bottom: 40px;
+}
+
+.chart-wrapper-hourly {
+    width: 100%;
+    padding: 20px 0;
+}
+
+.chart-title {
+    text-align: center;
+    margin-bottom: 20px;
+    color: #263238;
+}
+
+.actions {
+    margin-top: 1rem;
+}
+
+.data-info {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid #444;
+    font-size: 0.9rem;
+    color: #aaa;
+}
+
+/* Date picker container styles */
+.date-picker-container {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+/* Date input group styles */
+.date-input-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.date-input-group label {
+    font-size: 0.9rem;
+    margin-bottom: 5px;
+    color: #e0e0e0;
+    font-weight: 500;
+}
+
+.date-input-group input[type="date"] {
+    padding: 8px 12px;
+    border: 1px solid #555;
+    border-radius: 5px;
+    background-color: #1e1e1e;
+    color: white;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+.date-input-group input[type="date"]:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+/* Date error message styles */
+.date-error {
+    color: #e74c3c;
+    background-color: rgba(231, 76, 60, 0.1);
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 10px;
+    border-left: 4px solid #e74c3c;
+}
+
+/* Date range display styles */
+.date-range-display {
+    font-size: 0.95rem;
+    color: #b0b0b0;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    font-style: italic;
+}
+
+/* Responsive styles for mobile devices */
+@media (max-width: 768px) {
+    .date-picker-container {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .date-input-group {
+        width: 100%;
+        max-width: 300px;
+    }
+    
+    .date-input-group input[type="date"] {
+        width: 100%;
+    }
+}
+
+/* Debug info styles */
+.debug-info {
+    padding: 15px;
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+    margin-top: 30px;
+    font-size: 12px;
+    border-radius: 5px;
+    border: 1px solid #444;
+    font-family: 'Courier New', monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.debug-info strong {
+    color: #4fc3f7;
+    font-size: 14px;
+}

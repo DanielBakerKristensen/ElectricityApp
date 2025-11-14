@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import ApiDemo from './components/ApiDemo';
+import DatabaseDemo from './components/DatabaseDemo';
 import './App.css';
 
 // Main App component with routing
@@ -18,13 +19,15 @@ function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/demo" element={<ApiDemo />} />
+            <Route path="/database-demo" element={<DatabaseDemo />} />
           </Routes>
         </main>
 
         <footer className="App-footer">
           <nav>
             <Link to="/">Home</Link> | 
-            <Link to="/demo">API Demo</Link>
+            <Link to="/demo">API Demo</Link> |
+            <Link to="/database-demo">Database Demo</Link>
           </nav>
           <p>© {new Date().getFullYear()} Electricity App</p>
         </footer>

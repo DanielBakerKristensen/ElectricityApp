@@ -57,27 +57,73 @@
 }
 
 .custom-tooltip {
-    background-color: rgba(255, 255, 255, 0.9);
-    border: 1px solid #ccc;
+    background-color: white;
     padding: 10px;
-    border-radius: 5px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     color: #333;
 }
 
 .tooltip-date {
-    font-weight: bold;
+    font-weight: 600;
     margin-bottom: 5px;
 }
 
 .tooltip-time {
-    font-size: 0.9em;
-    color: #666;
-    margin-bottom: 10px;
+    margin-bottom: 3px;
 }
 
 .tooltip-consumption {
-    font-weight: bold;
+    color: #8884d8;
+    font-weight: 600;
+}
+
+.tooltip-quality {
+    font-size: 12px;
+    color: #666;
+}
+
+/* Range tooltip specific styles */
+.range-tooltip {
+    background-color: white;
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.range-tooltip-date {
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #263238;
+}
+
+.range-tooltip-item {
+    margin-bottom: 4px;
+}
+
+.range-tooltip-readings {
+    font-size: 12px;
+    color: #666;
+}
+
+/* Chart wrapper styles */
+.chart-wrapper {
+    width: 100%;
+    padding: 20px 0;
+    margin-bottom: 40px;
+}
+
+.chart-wrapper-hourly {
+    width: 100%;
+    padding: 20px 0;
+}
+
+.chart-title {
+    text-align: center;
+    margin-bottom: 20px;
+    color: #263238;
 }
 
 .actions {

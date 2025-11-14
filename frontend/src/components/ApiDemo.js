@@ -224,19 +224,13 @@ const ApiDemo = () => {
         if (active && payload && payload.length) {
             const data = payload[0].payload;
             return (
-                <div className="custom-tooltip" style={{
-                    backgroundColor: 'white',
-                    padding: '10px',
-                    border: '1px solid #ccc',
-                    borderRadius: '6px',
-                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-                }}>
-                    <p style={{ fontWeight: 600, marginBottom: '5px' }}>{data.date}</p>
-                    <p style={{ marginBottom: '3px' }}>Time: {data.time}</p>
-                    <p style={{ color: '#8884d8', fontWeight: 600 }}>
+                <div className="custom-tooltip">
+                    <p className="tooltip-date">{data.date}</p>
+                    <p className="tooltip-time">Time: {data.time}</p>
+                    <p className="tooltip-consumption">
                         Consumption: {data.consumption.toFixed(3)} kWh
                     </p>
-                    {data.quality && <p style={{ fontSize: '12px', color: '#666' }}>Quality: {data.quality}</p>}
+                    {data.quality && <p className="tooltip-quality">Quality: {data.quality}</p>}
                 </div>
             );
         }
@@ -248,19 +242,13 @@ const ApiDemo = () => {
         if (active && payload && payload.length) {
             const data = payload[0].payload;
             return (
-                <div className="custom-tooltip" style={{
-                    backgroundColor: 'white',
-                    padding: '12px',
-                    border: '1px solid #ccc',
-                    borderRadius: '6px',
-                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-                }}>
-                    <p style={{ fontWeight: 600, marginBottom: '8px', color: '#263238' }}>{data.date}</p>
-                    <p style={{ marginBottom: '4px' }}><strong>Min:</strong> {data.min.toFixed(3)} kWh</p>
-                    <p style={{ marginBottom: '4px' }}><strong>Max:</strong> {data.max.toFixed(3)} kWh</p>
-                    <p style={{ marginBottom: '4px' }}><strong>Average:</strong> {data.avg.toFixed(3)} kWh</p>
-                    <p style={{ marginBottom: '4px' }}><strong>Total:</strong> {data.total.toFixed(2)} kWh</p>
-                    <p style={{ fontSize: '12px', color: '#666' }}>{data.count} hourly readings</p>
+                <div className="range-tooltip">
+                    <p className="range-tooltip-date">{data.date}</p>
+                    <p className="range-tooltip-item"><strong>Min:</strong> {data.min.toFixed(3)} kWh</p>
+                    <p className="range-tooltip-item"><strong>Max:</strong> {data.max.toFixed(3)} kWh</p>
+                    <p className="range-tooltip-item"><strong>Average:</strong> {data.avg.toFixed(3)} kWh</p>
+                    <p className="range-tooltip-item"><strong>Total:</strong> {data.total.toFixed(2)} kWh</p>
+                    <p className="range-tooltip-readings">{data.count} hourly readings</p>
                 </div>
             );
         }
@@ -319,12 +307,8 @@ const ApiDemo = () => {
             {/* Daily Range Chart */}
             <div className="chart-container">
                 {dailyRangeData.length > 0 ? (
-                    <div style={{
-                        width: '100%',
-                        padding: '20px 0',
-                        marginBottom: '40px'
-                    }}>
-                        <h3 style={{ textAlign: 'center', marginBottom: '20px', color: '#263238' }}>
+                    <div className="chart-wrapper">
+                        <h3 className="chart-title">
                             Daily Energy Consumption Range
                         </h3>
                         <ResponsiveContainer width="100%" height={400}>
@@ -381,11 +365,8 @@ const ApiDemo = () => {
             {/* Hourly Detail Chart */}
             <div className="chart-container">
                 {hourlyData.length > 0 ? (
-                    <div style={{
-                        width: '100%',
-                        padding: '20px 0',
-                    }}>
-                        <h3 style={{ textAlign: 'center', marginBottom: '20px', color: '#263238' }}>
+                    <div className="chart-wrapper-hourly">
+                        <h3 className="chart-title">
                             Hourly Electricity Consumption
                         </h3>
                         <ResponsiveContainer width="100%" height={Math.max(hourlyData.length * 25 + 200, 600)}>

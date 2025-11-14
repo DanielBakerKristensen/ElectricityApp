@@ -3,23 +3,89 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import './ApiDemo.css';
 
 const ApiDemo = () => {
+    // Helper function to calculate default date range
+    const calculateDefaultDates = () => {
+        const endDate = new Date();
+        endDate.setDate(endDate.getDate() - 2); // 2 days ago
+        
+        const startDate = new Date(endDate);
+        startDate.setDate(startDate.getDate() - 7); // 7 days before end (9 days ago from today)
+        
+        const formatDate = (date) => date.toISOString().split('T')[0]; // YYYY-MM-DD
+        
+        return {
+            startDate: formatDate(startDate),
+            endDate: formatDate(endDate)
+        };
+    };
+
+    // Initialize default dates
+    const defaultDates = calculateDefaultDates();
+
+    // State management
     const [apiData, setApiData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [startDate, setStartDate] = useState(defaultDates.startDate);
+    const [endDate, setEndDate] = useState(defaultDates.endDate);
+    const [dateError, setDateError] = useState(null);
+
+    // Date validation function
+    const validateDateRange = (start, end) => {
+        const startDate = new Date(start);
+        const endDate = new Date(end);
+        
+        // Check if start is after end
+        if (startDate > endDate) {
+            return "Start date must be before or equal to end date";
+        }
+        
+        // Check if range exceeds 730 days (API limitation)
+        const diffTime = Math.abs(endDate - startDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays > 730) {
+            return "Date range cannot exceed 730 days (API limitation)";
+        }
+        
+        return null; // No error
+    };
+
+    // Date change handlers
+    const handleStartDateChange = (event) => {
+        setStartDate(event.target.value);
+        setDateError(null); // Clear error when user changes dates
+    };
+
+    const handleEndDateChange = (event) => {
+        setEndDate(event.target.value);
+        setDateError(null); // Clear error when user changes dates
+    };
+
+    // Helper function to format dates in readable format
+    const formatDisplayDate = (dateString) => {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: 'short', 
+            day: 'numeric' 
+        });
+    };
 
     const fetchData = async () => {
+        // Validate date range before making API call
+        const validationError = validateDateRange(startDate, endDate);
+        if (validationError) {
+            setDateError(validationError);
+            return; // Return early without making API call
+        }
+
         setLoading(true);
         setError(null);
+        setDateError(null); // Clear any previous date errors
         try {
-            // Calculate date range (9 days ago to 2 days ago)
-            const endDate = new Date();
-            endDate.setDate(endDate.getDate() - 2); // 2 days ago
-            const startDate = new Date(endDate);
-            startDate.setDate(startDate.getDate() - 7); // 7 days before that
-
-            const formatDate = (date) => date.toISOString().split('T')[0];
-
-            const response = await fetch(`/api/test-data?dateFrom=${formatDate(startDate)}&dateTo=${formatDate(endDate)}`);
+            // Use startDate and endDate state values in the API call
+            const response = await fetch(`/api/test-data?dateFrom=${startDate}&dateTo=${endDate}`);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -206,6 +272,34 @@ const ApiDemo = () => {
             <div className="demo-header">
                 <h2>📈 Electricity Consumption Analysis</h2>
                 <p>Daily consumption ranges and hourly details for the past week</p>
+                
+                <div className="date-picker-container">
+                    <div className="date-input-group">
+                        <label htmlFor="start-date">Start Date</label>
+                        <input 
+                            type="date" 
+                            id="start-date"
+                            value={startDate}
+                            onChange={handleStartDateChange}
+                        />
+                    </div>
+                    <div className="date-input-group">
+                        <label htmlFor="end-date">End Date</label>
+                        <input 
+                            type="date" 
+                            id="end-date"
+                            value={endDate}
+                            onChange={handleEndDateChange}
+                        />
+                    </div>
+                </div>
+                
+                {dateError && <div className="date-error">{dateError}</div>}
+                
+                <div className="date-range-display">
+                    Showing data from {formatDisplayDate(startDate)} to {formatDisplayDate(endDate)}
+                </div>
+                
                 <button
                     onClick={fetchData}
                     disabled={loading}

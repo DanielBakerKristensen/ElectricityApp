@@ -1,3 +1,6 @@
+# Nested repository (accidental duplicate)
+ElectricityApp/
+
 # Dependencies
 /node_modules
 /.pnp

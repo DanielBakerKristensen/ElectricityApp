@@ -2,7 +2,7 @@
 ElectricityApp/
 
 # Dependencies
-/node_modules
+node_modules/
 /.pnp
 .pnp.js
 
@@ -33,6 +33,7 @@ Dockerfile
 # Editor directories and files
 .idea
 .vscode
+.kiro
 *.suo
 *.ntvs*
 *.njsproj

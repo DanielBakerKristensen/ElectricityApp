@@ -2,14 +2,23 @@ const path = require('path');
 const fs = require('fs');
 
 // Auto-detect environment and load appropriate .env file
-const isDocker = fs.existsSync('/.dockerenv') || process.env.DOCKER_ENV === 'true';
+// Check for Docker environment indicators
+const isDocker = fs.existsSync('/.dockerenv') || 
+                 process.env.DOCKER_ENV === 'true' ||
+                 process.env.HOSTNAME?.includes('docker') ||
+                 fs.existsSync('/proc/1/cgroup') && fs.readFileSync('/proc/1/cgroup', 'utf8').includes('docker');
+
 const envFile = isDocker ? '.env.docker' : '.env.local';
-const envPath = path.join(__dirname, '..', envFile);
+// For Docker, check in current directory first, then parent
+const envPath = isDocker ? 
+  (fs.existsSync(path.join(__dirname, envFile)) ? path.join(__dirname, envFile) : path.join(__dirname, '..', envFile)) :
+  path.join(__dirname, '..', envFile);
 
 // Fallback to .env if specific file doesn't exist
 const finalEnvPath = fs.existsSync(envPath) ? envPath : path.join(__dirname, '../.env');
 
 require('dotenv').config({ path: finalEnvPath });
+console.log(`🔧 Environment: ${isDocker ? 'Docker' : 'Local'}`);
 console.log(`🔧 Loaded environment from: ${path.basename(finalEnvPath)}`);
 
 const express = require('express');

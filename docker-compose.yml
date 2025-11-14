@@ -14,7 +14,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
     env_file:
-      - .env
+      - .env.docker
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U electricity_user -d electricity_app"]
       interval: 5s
@@ -56,9 +56,9 @@ services:
     ports:
       - "${BACKEND_PORT:-5000}:${BACKEND_PORT:-5000}"
     volumes:
-      - ./.env:/app/.env
       - ./backend:/app
       - /app/node_modules
+      - ./.env.docker:/app/.env.docker:ro
     working_dir: /app
     command: npm start
     networks:

@@ -19,23 +19,11 @@ const ApiDemo = () => {
 
             const formatDate = (date) => date.toISOString().split('T')[0];
 
-            console.log('Fetching data from', formatDate(startDate), 'to', formatDate(endDate));
-
             const response = await fetch(`/api/test-data?dateFrom=${formatDate(startDate)}&dateTo=${formatDate(endDate)}`);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             const data = await response.json();
-            console.log('Raw API response:', data);
-            console.log('Response status:', response.status);
-            console.log('Response ok:', response.ok);
-            console.log('Data structure check:', {
-                hasResult: !!data?.result,
-                resultLength: data?.result?.length,
-                hasDocument: !!data?.result?.[0]?.MyEnergyData_MarketDocument,
-                hasTimeSeries: !!data?.result?.[0]?.MyEnergyData_MarketDocument?.TimeSeries,
-                timeSeriesLength: data?.result?.[0]?.MyEnergyData_MarketDocument?.TimeSeries?.length
-            });
             setApiData(data);
         } catch (err) {
             console.error('Error fetching data:', err);
@@ -51,24 +39,19 @@ const ApiDemo = () => {
 
     // Process data for hourly chart
     const processHourlyData = (data) => {
-        console.log('Processing hourly data, input:', data);
-
         // Check if the API response is successful
         // The success/errorCode fields are at the root of each result item
         const resultItem = data?.result?.[0];
         if (!resultItem?.success || resultItem?.errorCode !== 10000) {
-            console.log('API response not successful:', resultItem?.errorText);
             return [];
         }
 
         if (!data?.result?.[0]?.MyEnergyData_MarketDocument?.TimeSeries?.[0]) {
-            console.log('No data structure found');
             return [];
         }
 
         const timeSeries = data.result[0].MyEnergyData_MarketDocument.TimeSeries[0];
         const periods = timeSeries.Period || [];
-        console.log('Found periods:', periods.length);
         const chartData = [];
 
         // Process all periods and points
@@ -98,7 +81,6 @@ const ApiDemo = () => {
         });
 
         // Sort by timestamp
-        console.log('Processed hourly chart data:', chartData.length, 'points');
         return chartData.sort((a, b) => a.timestamp - b.timestamp);
     };
 
@@ -108,7 +90,6 @@ const ApiDemo = () => {
         // The success/errorCode fields are at the root of each result item
         const resultItem = data?.result?.[0];
         if (!resultItem?.success || resultItem?.errorCode !== 10000) {
-            console.log('API response not successful for daily range:', resultItem?.errorText);
             return [];
         }
 
@@ -171,9 +152,6 @@ const ApiDemo = () => {
 
     const hourlyData = apiData ? processHourlyData(apiData) : [];
     const dailyRangeData = apiData ? processDailyRangeData(apiData) : [];
-
-    console.log('Processed hourly data:', hourlyData);
-    console.log('Processed daily range data:', dailyRangeData);
 
     // Custom tooltip for hourly chart
     const HourlyTooltip = ({ active, payload, label }) => {

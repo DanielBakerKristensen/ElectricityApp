@@ -75,8 +75,8 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   customfavIcon: '/favicon.ico'
 }));
 
-// API Routes
-app.use('/api/v1', require('./routes/api/v1'));
+// API Routes - Only keeping test endpoint for now
+app.use('/api', require('./routes/electricity-routes'));
 
 // Health check endpoint
 app.get('/health', (req, res) => {

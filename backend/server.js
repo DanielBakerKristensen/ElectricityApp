@@ -28,7 +28,10 @@ const rateLimit = require('express-rate-limit');
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 const logger = require('./utils/logger');
-const { testConnection } = require('./config/database');
+const { sequelize, testConnection } = require('./config/database');
+const SyncService = require('./services/sync-service');
+const SyncScheduler = require('./services/sync-scheduler');
+const eloverblikService = require('./services/eloverblik-service');
 
 const app = express();
 
@@ -98,15 +101,55 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 
 // API Routes
 app.use('/api', require('./routes/electricity-routes'));
+app.use('/api/sync', require('./routes/sync-routes'));
 
 // Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    version: '1.0.0'
-  });
+app.get('/health', async (req, res) => {
+  try {
+    // Query most recent sync status from data_sync_log
+    const [lastSyncResults] = await sequelize.query(
+      `SELECT 
+        status,
+        records_synced,
+        created_at,
+        error_message
+      FROM data_sync_log
+      ORDER BY created_at DESC
+      LIMIT 1`,
+      { type: sequelize.QueryTypes.SELECT }
+    );
+
+    const syncInfo = {
+      enabled: process.env.SYNC_ENABLED !== 'false',
+      lastRun: lastSyncResults?.created_at || null,
+      lastStatus: lastSyncResults?.status || null,
+      recordsSynced: lastSyncResults?.records_synced || null
+    };
+
+    res.status(200).json({
+      status: 'OK',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      version: '1.0.0',
+      sync: syncInfo
+    });
+  } catch (error) {
+    // If database query fails, still return health status but without sync info
+    logger.error('Error querying sync status in health check:', error);
+    res.status(200).json({
+      status: 'OK',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      version: '1.0.0',
+      sync: {
+        enabled: process.env.SYNC_ENABLED !== 'false',
+        lastRun: null,
+        lastStatus: null,
+        recordsSynced: null,
+        error: 'Unable to query sync status'
+      }
+    });
+  }
 });
 
 // Root endpoint redirects to API docs
@@ -143,29 +186,90 @@ app.use((req, res) => {
 
 // Start server
 const PORT = process.env.PORT || 5000;
+let syncScheduler = null;
+
 const server = app.listen(PORT, async () => {
   try {
     await testConnection();
     logger.info(`Server running on port ${PORT}`);
     logger.info(`API Documentation available at http://localhost:${PORT}/api-docs`);
+    
+    // Initialize sync scheduler after database connection is established
+    if (process.env.SYNC_ENABLED !== 'false') {
+      try {
+        const syncService = new SyncService(eloverblikService, sequelize, logger);
+        syncScheduler = new SyncScheduler(syncService, logger);
+        syncScheduler.start();
+        
+        // Store syncScheduler in app.locals for access by routes
+        app.locals.syncScheduler = syncScheduler;
+        
+        logger.info('Sync scheduler initialized and started');
+      } catch (schedulerError) {
+        logger.error('Failed to initialize sync scheduler:', schedulerError);
+        // Don't exit - allow server to continue running even if scheduler fails
+      }
+    } else {
+      logger.info('Sync scheduler is disabled (SYNC_ENABLED=false)');
+    }
   } catch (error) {
     logger.error('Failed to start server:', error);
     process.exit(1);
   }
 });
 
+// Graceful shutdown handler
+const gracefulShutdown = (signal) => {
+  logger.info(`${signal} received, shutting down gracefully`);
+  
+  // Stop the sync scheduler first
+  if (syncScheduler) {
+    try {
+      syncScheduler.stop();
+      logger.info('Sync scheduler stopped');
+    } catch (error) {
+      logger.error('Error stopping sync scheduler:', error);
+    }
+  }
+  
+  // Close the server
+  server.close(async () => {
+    logger.info('HTTP server closed');
+    
+    // Close database connections
+    try {
+      await sequelize.close();
+      logger.info('Database connections closed');
+    } catch (error) {
+      logger.error('Error closing database connections:', error);
+    }
+    
+    process.exit(0);
+  });
+  
+  // Force shutdown after 10 seconds if graceful shutdown fails
+  setTimeout(() => {
+    logger.error('Forced shutdown after timeout');
+    process.exit(1);
+  }, 10000);
+};
+
+// Handle SIGTERM signal (Docker stop, Kubernetes termination)
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+// Handle SIGINT signal (Ctrl+C)
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   logger.error('Unhandled Rejection:', err);
-  // Close server & exit process
-  server.close(() => process.exit(1));
+  gracefulShutdown('unhandledRejection');
 });
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
   logger.error('Uncaught Exception:', err);
-  // Close server & exit process
-  server.close(() => process.exit(1));
+  gracefulShutdown('uncaughtException');
 });
 
 module.exports = server;

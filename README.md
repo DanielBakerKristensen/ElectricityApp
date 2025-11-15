@@ -70,6 +70,51 @@ You'll need to obtain:
 - Refresh token from eloverblik.dk portal
 - Your metering point ID(s)
 
+### Automated Data Sync
+
+The application includes an automated daily sync feature that fetches electricity consumption data from the Eloverblik API and stores it locally in the database. This reduces dependency on the external API and improves performance.
+
+**Environment Variables:**
+
+- `SYNC_ENABLED` - Enable or disable automated sync (default: `true`)
+  - Set to `false` to disable the scheduler
+- `SYNC_SCHEDULE` - Cron expression for sync schedule (default: `0 14 * * *`)
+  - Default runs daily at 2:00 PM
+  - Examples:
+    - `0 14 * * *` - Daily at 2:00 PM
+    - `0 */6 * * *` - Every 6 hours
+    - `0 3 * * 1` - Weekly on Monday at 3:00 AM
+    - `0 1 1 * *` - Monthly on the 1st at 1:00 AM
+- `SYNC_DAYS_BACK` - Number of days to sync (default: `1`)
+  - Set to `1` to sync yesterday's data
+  - Set to `7` to sync the last week of data
+- `ADMIN_TOKEN` - Authentication token for admin endpoints (optional)
+  - Leave empty to disable authentication (for local development)
+  - Set a secure token for production environments
+
+**Manual Sync Trigger:**
+
+You can manually trigger a data sync using the API endpoint:
+
+```bash
+# Without authentication (if ADMIN_TOKEN is not set)
+curl -X POST http://localhost:5000/api/sync/trigger
+
+# With authentication (if ADMIN_TOKEN is set)
+curl -X POST http://localhost:5000/api/sync/trigger \
+  -H "Authorization: Bearer your_admin_token_here"
+```
+
+The endpoint returns:
+```json
+{
+  "success": true,
+  "recordsSynced": 24,
+  "logId": 42,
+  "message": "Sync completed successfully"
+}
+```
+
 ## API Rate Limits
 
 - Token calls: 2 per minute per IP

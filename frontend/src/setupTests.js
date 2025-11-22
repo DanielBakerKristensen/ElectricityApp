@@ -4,14 +4,13 @@
 // learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom';
 
-// Mock ResizeObserver for tests (required by Recharts)
+// Mock ResizeObserver for ApexCharts
 global.ResizeObserver = class ResizeObserver {
   constructor(callback) {
     this.callback = callback;
   }
   observe() {
     // Mock implementation
-    this.callback([{ contentRect: { width: 800, height: 600 } }], this);
   }
   unobserve() {
     // Mock implementation

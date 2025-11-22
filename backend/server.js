@@ -82,14 +82,14 @@ const swaggerOptions = {
       },
     ],
   },
-  apis: [
-    './routes/api/v1/*.js',
-    './routes/api/v1/*.yaml',
-    './routes/api/v1/*.yml'
-  ],
+  apis: ['./routes/*.js', './server.js'],
 };
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
+
+// Debug: Log the swagger spec to see what's being generated
+console.log('Swagger spec paths:', JSON.stringify(swaggerSpec.paths, null, 2));
+console.log('Scanning for API docs in:', swaggerOptions.apis);
 
 // API Documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
@@ -103,6 +103,48 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 app.use('/api', require('./routes/electricity-routes'));
 app.use('/api/sync', require('./routes/sync-routes'));
 
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     summary: Health check endpoint
+ *     description: Returns the health status of the API, including database connectivity and sync status
+ *     tags:
+ *       - System
+ *     responses:
+ *       200:
+ *         description: Service is healthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: OK
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *                   example: "2024-01-15T10:30:00.000Z"
+ *                 environment:
+ *                   type: string
+ *                   example: production
+ *                 version:
+ *                   type: string
+ *                   example: "1.0.0"
+ *                 sync:
+ *                   type: object
+ *                   properties:
+ *                     enabled:
+ *                       type: boolean
+ *                     lastRun:
+ *                       type: string
+ *                       format: date-time
+ *                     lastStatus:
+ *                       type: string
+ *                     recordsSynced:
+ *                       type: number
+ */
 // Health check endpoint
 app.get('/health', async (req, res) => {
   try {

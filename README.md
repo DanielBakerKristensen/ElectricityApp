@@ -8,7 +8,7 @@ A full-stack application for pulling and visualizing electricity consumption dat
 - **Backend**: Node.js with Express
 - **Database**: PostgreSQL
 - **Deployment**: Docker containers
-- **Data Visualization**: Chart.js/Recharts
+- **Data Visualization**: ApexCharts
 - **Excel Export**: xlsx library
 
 ## Features

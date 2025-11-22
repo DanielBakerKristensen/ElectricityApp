@@ -21,14 +21,24 @@ class SyncService {
      * Calculate date range for syncing based on daysBack parameter
      * @param {number} daysBack - Number of days to go back from today
      * @returns {Object} Object containing dateFrom and dateTo in YYYY-MM-DD format
+     * 
+     * Note: Eloverblik API requires dateTo to be AFTER dateFrom (cannot be equal)
+     * So if requesting 1 day of data, dateTo should be the day after dateFrom
      */
     calculateDateRange(daysBack = 1) {
         const today = new Date();
-        const dateTo = new Date(today);
-        dateTo.setDate(today.getDate() - 1); // Yesterday
         
-        const dateFrom = new Date(dateTo);
-        dateFrom.setDate(dateTo.getDate() - (daysBack - 1));
+        // Sync the day before yesterday (2 days ago)
+        // Eloverblik data is typically available 1-2 days after consumption
+        // By syncing 2 days ago, we ensure the data is definitely available
+        const targetDate = new Date(today);
+        targetDate.setDate(today.getDate() - 2); // Day before yesterday
+        
+        // For the API, dateFrom is the target date and dateTo is the next day
+        // This gives us exactly one day of data
+        const dateFrom = new Date(targetDate);
+        const dateTo = new Date(targetDate);
+        dateTo.setDate(targetDate.getDate() + 1); // Next day (API uses exclusive end date)
         
         // Format as YYYY-MM-DD
         const formatDate = (date) => {

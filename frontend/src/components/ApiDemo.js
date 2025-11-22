@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import Chart from 'react-apexcharts';
+import { getCandlestickOptions, getHorizontalBarOptions } from '../utils/chartConfig';
 import './ApiDemo.css';
 
 const ApiDemo = () => {
@@ -219,41 +220,24 @@ const ApiDemo = () => {
     const hourlyData = apiData ? processHourlyData(apiData) : [];
     const dailyRangeData = apiData ? processDailyRangeData(apiData) : [];
 
-    // Custom tooltip for hourly chart
-    const HourlyTooltip = ({ active, payload, label }) => {
-        if (active && payload && payload.length) {
-            const data = payload[0].payload;
-            return (
-                <div className="custom-tooltip">
-                    <p className="tooltip-date">{data.date}</p>
-                    <p className="tooltip-time">Time: {data.time}</p>
-                    <p className="tooltip-consumption">
-                        Consumption: {data.consumption.toFixed(3)} kWh
-                    </p>
-                    {data.quality && <p className="tooltip-quality">Quality: {data.quality}</p>}
-                </div>
-            );
-        }
-        return null;
+    // Data transformation functions for ApexCharts
+    const transformToCandlestickData = (dailyRangeData) => {
+        return dailyRangeData.map(day => ({
+            x: day.date,
+            y: [
+                day.avg,  // open (using avg as both open and close)
+                day.max,  // high
+                day.min,  // low
+                day.avg   // close
+            ]
+        }));
     };
 
-    // Custom tooltip for daily range chart
-    const RangeTooltip = ({ active, payload, label }) => {
-        if (active && payload && payload.length) {
-            const data = payload[0].payload;
-            return (
-                <div className="range-tooltip">
-                    <p className="range-tooltip-date">{data.date}</p>
-                    <p className="range-tooltip-item"><strong>Min:</strong> {data.min.toFixed(3)} kWh</p>
-                    <p className="range-tooltip-item"><strong>Max:</strong> {data.max.toFixed(3)} kWh</p>
-                    <p className="range-tooltip-item"><strong>Average:</strong> {data.avg.toFixed(3)} kWh</p>
-                    <p className="range-tooltip-item"><strong>Total:</strong> {data.total.toFixed(2)} kWh</p>
-                    <p className="range-tooltip-readings">{data.count} hourly readings</p>
-                </div>
-            );
-        }
-        return null;
+    const transformToBarData = (hourlyData) => {
+        return hourlyData.map(hour => hour.consumption);
     };
+
+
 
     return (
         <div className="api-demo">
@@ -308,52 +292,14 @@ const ApiDemo = () => {
             <div className="chart-container">
                 {dailyRangeData.length > 0 ? (
                     <div className="chart-wrapper">
-                        <h3 className="chart-title">
-                            Daily Energy Consumption Range
-                        </h3>
-                        <ResponsiveContainer width="100%" height={400}>
-                            <BarChart
-                                data={dailyRangeData}
-                                margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
-                            >
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis
-                                    dataKey="date"
-                                    angle={-45}
-                                    textAnchor="end"
-                                    height={80}
-                                    fontSize={12}
-                                    stroke="#263238"
-                                    tick={{ fill: '#263238' }}
-                                />
-                                <YAxis
-                                    label={{ value: 'Consumption (kWh)', angle: -90, position: 'insideLeft', fill: '#263238' }}
-                                    fontSize={12}
-                                    stroke="#263238"
-                                    tick={{ fill: '#263238' }}
-                                />
-                                <Tooltip content={<RangeTooltip />} />
-                                <Legend />
-                                <Bar
-                                    dataKey="min"
-                                    fill="#E3F2FD"
-                                    name="Min Consumption"
-                                    stackId="range"
-                                />
-                                <Bar
-                                    dataKey="range"
-                                    fill="#00E396"
-                                    name="Range (Max - Min)"
-                                    stackId="range"
-                                />
-                                <Bar
-                                    dataKey="avg"
-                                    fill="#FF6B6B"
-                                    name="Average Consumption"
-                                    opacity={0.8}
-                                />
-                            </BarChart>
-                        </ResponsiveContainer>
+                        <Chart
+                            options={getCandlestickOptions(dailyRangeData.map(d => d.date))}
+                            series={[{
+                                data: transformToCandlestickData(dailyRangeData)
+                            }]}
+                            type="candlestick"
+                            height={400}
+                        />
                     </div>
                 ) : (
                     <div className="no-data">
@@ -366,41 +312,15 @@ const ApiDemo = () => {
             <div className="chart-container">
                 {hourlyData.length > 0 ? (
                     <div className="chart-wrapper-hourly">
-                        <h3 className="chart-title">
-                            Hourly Electricity Consumption
-                        </h3>
-                        <ResponsiveContainer width="100%" height={Math.max(hourlyData.length * 25 + 200, 600)}>
-                            <BarChart
-                                layout="vertical"
-                                data={hourlyData}
-                                margin={{ top: 20, right: 30, left: 150, bottom: 5 }}
-                            >
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis
-                                    type="number"
-                                    label={{ value: 'Consumption (kWh)', position: 'insideBottom', offset: -10, fill: '#263238' }}
-                                    fontSize={12}
-                                    stroke="#263238"
-                                    tick={{ fill: '#263238' }}
-                                />
-                                <YAxis
-                                    dataKey="label"
-                                    type="category"
-                                    width={140}
-                                    fontSize={10}
-                                    stroke="#263238"
-                                    tick={{ fill: '#263238' }}
-                                />
-                                <Tooltip content={<HourlyTooltip />} />
-                                <Legend />
-                                <Bar
-                                    dataKey="consumption"
-                                    fill="#8884d8"
-                                    name="Consumption (kWh)"
-                                    radius={[0, 4, 4, 0]}
-                                />
-                            </BarChart>
-                        </ResponsiveContainer>
+                        <Chart
+                            options={getHorizontalBarOptions(hourlyData.map(h => h.label), hourlyData.length)}
+                            series={[{
+                                name: 'Consumption (kWh)',
+                                data: transformToBarData(hourlyData)
+                            }]}
+                            type="bar"
+                            height={Math.max(hourlyData.length * 25 + 200, 600)}
+                        />
                     </div>
                 ) : (
                     <div className="no-data">

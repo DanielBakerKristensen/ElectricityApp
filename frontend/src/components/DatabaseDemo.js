@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import Chart from 'react-apexcharts';
+import { getCandlestickOptions, getHorizontalBarOptions } from '../utils/chartConfig';
 import './DatabaseDemo.css';
 
 const DatabaseDemo = () => {
     // Helper function to calculate default date range
     const calculateDefaultDates = () => {
         const endDate = new Date();
-        endDate.setDate(endDate.getDate() - 2); // 2 days ago
+        endDate.setDate(endDate.getDate() - 7); // 7 days ago (to avoid future dates with no data)
         
         const startDate = new Date(endDate);
-        startDate.setDate(startDate.getDate() - 7); // 7 days before end (9 days ago from today)
+        startDate.setDate(startDate.getDate() - 7); // 7 days before end (14 days ago from today)
         
         const formatDate = (date) => date.toISOString().split('T')[0]; // YYYY-MM-DD
         
@@ -124,17 +125,16 @@ const DatabaseDemo = () => {
 
                 const consumption = parseFloat(point['out_Quantity.quantity'] || 0);
 
-                if (consumption > 0) { // Only add valid consumption data
-                    chartData.push({
-                        timestamp: pointDate,
-                        date: pointDate.toLocaleDateString('en-GB'),
-                        time: pointDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }),
-                        label: pointDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' ' +
-                            pointDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
-                        consumption: consumption,
-                        quality: point['out_Quantity.quality']
-                    });
-                }
+                // Include all data points, even zeros
+                chartData.push({
+                    timestamp: pointDate,
+                    date: pointDate.toLocaleDateString('en-GB'),
+                    time: pointDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }),
+                    label: pointDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' ' +
+                        pointDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+                    consumption: consumption,
+                    quality: point['out_Quantity.quality']
+                });
             });
         });
 
@@ -172,16 +172,15 @@ const DatabaseDemo = () => {
                 const dayKey = pointDate.toLocaleDateString('en-GB');
                 const consumption = parseFloat(point['out_Quantity.quantity'] || 0);
 
-                if (consumption > 0) { // Only process valid consumption data
-                    if (!dailyData[dayKey]) {
-                        dailyData[dayKey] = {
-                            date: dayKey,
-                            timestamp: new Date(pointDate.getFullYear(), pointDate.getMonth(), pointDate.getDate()),
-                            consumptions: []
-                        };
-                    }
-                    dailyData[dayKey].consumptions.push(consumption);
+                // Include all consumption data, even zeros
+                if (!dailyData[dayKey]) {
+                    dailyData[dayKey] = {
+                        date: dayKey,
+                        timestamp: new Date(pointDate.getFullYear(), pointDate.getMonth(), pointDate.getDate()),
+                        consumptions: []
+                    };
                 }
+                dailyData[dayKey].consumptions.push(consumption);
             });
         });
 
@@ -192,6 +191,10 @@ const DatabaseDemo = () => {
             const max = Math.max(...consumptions);
             const avg = consumptions.reduce((sum, val) => sum + val, 0) / consumptions.length;
             const total = consumptions.reduce((sum, val) => sum + val, 0);
+            
+            // Detect suspicious data (all zeros or total is zero)
+            const hasData = total > 0;
+            const allZeros = consumptions.every(c => c === 0);
 
             return {
                 date: day.date,
@@ -199,6 +202,8 @@ const DatabaseDemo = () => {
                 min: min,
                 max: max,
                 avg: avg,
+                hasData: hasData,
+                allZeros: allZeros,
                 total: total,
                 count: consumptions.length,
                 range: max - min
@@ -208,44 +213,30 @@ const DatabaseDemo = () => {
         return rangeData;
     };
 
+    // Data transformation functions for ApexCharts
+    const transformToCandlestickData = (dailyRangeData) => {
+        return dailyRangeData.map(day => ({
+            x: day.date,
+            y: [
+                day.avg,  // open (we'll use avg as both open and close)
+                day.max,  // high
+                day.min,  // low
+                day.avg   // close
+            ]
+        }));
+    };
+
+    const transformToBarData = (hourlyData) => {
+        return hourlyData.map(hour => ({
+            x: hour.label,
+            y: hour.consumption
+        }));
+    };
+
     const hourlyData = dbData ? processHourlyData(dbData) : [];
     const dailyRangeData = dbData ? processDailyRangeData(dbData) : [];
 
-    // Custom tooltip for hourly chart
-    const HourlyTooltip = ({ active, payload, label }) => {
-        if (active && payload && payload.length) {
-            const data = payload[0].payload;
-            return (
-                <div className="custom-tooltip">
-                    <p className="tooltip-date">{data.date}</p>
-                    <p className="tooltip-time">Time: {data.time}</p>
-                    <p className="tooltip-consumption">
-                        Consumption: {data.consumption.toFixed(3)} kWh
-                    </p>
-                    {data.quality && <p className="tooltip-quality">Quality: {data.quality}</p>}
-                </div>
-            );
-        }
-        return null;
-    };
 
-    // Custom tooltip for daily range chart
-    const RangeTooltip = ({ active, payload, label }) => {
-        if (active && payload && payload.length) {
-            const data = payload[0].payload;
-            return (
-                <div className="range-tooltip">
-                    <p className="range-tooltip-date">{data.date}</p>
-                    <p className="range-tooltip-item"><strong>Min:</strong> {data.min.toFixed(3)} kWh</p>
-                    <p className="range-tooltip-item"><strong>Max:</strong> {data.max.toFixed(3)} kWh</p>
-                    <p className="range-tooltip-item"><strong>Average:</strong> {data.avg.toFixed(3)} kWh</p>
-                    <p className="range-tooltip-item"><strong>Total:</strong> {data.total.toFixed(2)} kWh</p>
-                    <p className="range-tooltip-readings">{data.count} hourly readings</p>
-                </div>
-            );
-        }
-        return null;
-    };
 
     return (
         <div className="database-demo">
@@ -296,56 +287,50 @@ const DatabaseDemo = () => {
                 </div>
             )}
 
+            {/* Data Quality Warning */}
+            {dailyRangeData.length > 0 && (() => {
+                const daysWithZeros = dailyRangeData.filter(day => day.allZeros);
+                const daysWithoutData = dailyRangeData.filter(day => !day.hasData);
+                
+                if (daysWithZeros.length > 0 || daysWithoutData.length > 0) {
+                    return (
+                        <div className="warning-message" style={{
+                            backgroundColor: '#fff3cd',
+                            border: '1px solid #ffc107',
+                            borderRadius: '4px',
+                            padding: '15px',
+                            margin: '20px 0',
+                            color: '#856404'
+                        }}>
+                            <h3 style={{ margin: '0 0 10px 0' }}>⚠️ Data Quality Warning</h3>
+                            {daysWithZeros.length > 0 && (
+                                <p style={{ margin: '5px 0' }}>
+                                    <strong>{daysWithZeros.length} day(s) with zero consumption detected:</strong>
+                                    <br />
+                                    {daysWithZeros.map(d => d.date).join(', ')}
+                                    <br />
+                                    <em>This usually means data is not yet available from Eloverblik API. Data typically becomes available 1-2 days after consumption.</em>
+                                </p>
+                            )}
+                        </div>
+                    );
+                }
+                return null;
+            })()}
+
             {/* Daily Range Chart */}
             <div className="chart-container">
                 {dailyRangeData.length > 0 ? (
                     <div className="chart-wrapper">
-                        <h3 className="chart-title">
-                            Daily Energy Consumption Range
-                        </h3>
-                        <ResponsiveContainer width="100%" height={400}>
-                            <BarChart
-                                data={dailyRangeData}
-                                margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
-                            >
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis
-                                    dataKey="date"
-                                    angle={-45}
-                                    textAnchor="end"
-                                    height={80}
-                                    fontSize={12}
-                                    stroke="#263238"
-                                    tick={{ fill: '#263238' }}
-                                />
-                                <YAxis
-                                    label={{ value: 'Consumption (kWh)', angle: -90, position: 'insideLeft', fill: '#263238' }}
-                                    fontSize={12}
-                                    stroke="#263238"
-                                    tick={{ fill: '#263238' }}
-                                />
-                                <Tooltip content={<RangeTooltip />} />
-                                <Legend />
-                                <Bar
-                                    dataKey="min"
-                                    fill="#E3F2FD"
-                                    name="Min Consumption"
-                                    stackId="range"
-                                />
-                                <Bar
-                                    dataKey="range"
-                                    fill="#00E396"
-                                    name="Range (Max - Min)"
-                                    stackId="range"
-                                />
-                                <Bar
-                                    dataKey="avg"
-                                    fill="#FF6B6B"
-                                    name="Average Consumption"
-                                    opacity={0.8}
-                                />
-                            </BarChart>
-                        </ResponsiveContainer>
+                        <Chart
+                            options={getCandlestickOptions(
+                                dailyRangeData.map(d => d.date),
+                                dailyRangeData.filter(d => d.allZeros).map(d => d.date)
+                            )}
+                            series={[{ data: transformToCandlestickData(dailyRangeData) }]}
+                            type="candlestick"
+                            height={400}
+                        />
                     </div>
                 ) : (
                     <div className="no-data">
@@ -358,41 +343,12 @@ const DatabaseDemo = () => {
             <div className="chart-container">
                 {hourlyData.length > 0 ? (
                     <div className="chart-wrapper-hourly">
-                        <h3 className="chart-title">
-                            Hourly Electricity Consumption
-                        </h3>
-                        <ResponsiveContainer width="100%" height={Math.max(hourlyData.length * 25 + 200, 600)}>
-                            <BarChart
-                                layout="vertical"
-                                data={hourlyData}
-                                margin={{ top: 20, right: 30, left: 150, bottom: 5 }}
-                            >
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis
-                                    type="number"
-                                    label={{ value: 'Consumption (kWh)', position: 'insideBottom', offset: -10, fill: '#263238' }}
-                                    fontSize={12}
-                                    stroke="#263238"
-                                    tick={{ fill: '#263238' }}
-                                />
-                                <YAxis
-                                    dataKey="label"
-                                    type="category"
-                                    width={140}
-                                    fontSize={10}
-                                    stroke="#263238"
-                                    tick={{ fill: '#263238' }}
-                                />
-                                <Tooltip content={<HourlyTooltip />} />
-                                <Legend />
-                                <Bar
-                                    dataKey="consumption"
-                                    fill="#8884d8"
-                                    name="Consumption (kWh)"
-                                    radius={[0, 4, 4, 0]}
-                                />
-                            </BarChart>
-                        </ResponsiveContainer>
+                        <Chart
+                            options={getHorizontalBarOptions(hourlyData.map(h => h.label), hourlyData.length)}
+                            series={[{ name: 'Consumption (kWh)', data: transformToBarData(hourlyData) }]}
+                            type="bar"
+                            height={Math.max(hourlyData.length * 25 + 200, 600)}
+                        />
                     </div>
                 ) : (
                     <div className="no-data">

@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import ApiDemo from './ApiDemo';
+import DatabaseDemo from './DatabaseDemo';
 
 // Mock fetch
 global.fetch = jest.fn();
@@ -17,7 +17,7 @@ jest.mock('react-apexcharts', () => ({
   )
 }));
 
-describe('ApiDemo - Chart Updates with Date Range', () => {
+describe('DatabaseDemo - Chart Updates with Date Range', () => {
   beforeEach(() => {
     // Clear all mocks before each test
     jest.clearAllMocks();
@@ -70,7 +70,7 @@ describe('ApiDemo - Chart Updates with Date Range', () => {
       json: async () => mockSuccessResponse
     });
 
-    render(<ApiDemo />);
+    render(<DatabaseDemo />);
 
     // Change dates
     const startDateInput = screen.getByLabelText(/start date/i);
@@ -109,7 +109,7 @@ describe('ApiDemo - Chart Updates with Date Range', () => {
       json: async () => mockSuccessResponse
     });
 
-    render(<ApiDemo />);
+    render(<DatabaseDemo />);
 
     const startDateInput = screen.getByLabelText(/start date/i);
     const endDateInput = screen.getByLabelText(/end date/i);
@@ -122,7 +122,7 @@ describe('ApiDemo - Chart Updates with Date Range', () => {
 
     // Verify the API was called with the correct date range
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith('/api/test-data?dateFrom=2025-01-01&dateTo=2025-01-02');
+      expect(fetch).toHaveBeenCalledWith('/api/database-demo?dateFrom=2025-01-01&dateTo=2025-01-02');
     });
 
     // Verify data is displayed
@@ -142,7 +142,7 @@ describe('ApiDemo - Chart Updates with Date Range', () => {
       )
     );
 
-    render(<ApiDemo />);
+    render(<DatabaseDemo />);
 
     const refreshButton = screen.getByRole('button', { name: /refresh data/i });
     fireEvent.click(refreshButton);
@@ -166,7 +166,7 @@ describe('ApiDemo - Chart Updates with Date Range', () => {
       json: async () => mockEmptyResponse
     });
 
-    render(<ApiDemo />);
+    render(<DatabaseDemo />);
 
     const refreshButton = screen.getByRole('button', { name: /refresh data/i });
     fireEvent.click(refreshButton);
@@ -186,7 +186,7 @@ describe('ApiDemo - Chart Updates with Date Range', () => {
   test('displays error message when API call fails', async () => {
     fetch.mockRejectedValueOnce(new Error('Network error'));
 
-    render(<ApiDemo />);
+    render(<DatabaseDemo />);
 
     const refreshButton = screen.getByRole('button', { name: /refresh data/i });
     fireEvent.click(refreshButton);
@@ -198,7 +198,7 @@ describe('ApiDemo - Chart Updates with Date Range', () => {
   });
 
   test('date range display updates with selected dates', () => {
-    render(<ApiDemo />);
+    render(<DatabaseDemo />);
 
     const startDateInput = screen.getByLabelText(/start date/i);
     const endDateInput = screen.getByLabelText(/end date/i);
@@ -216,7 +216,7 @@ describe('ApiDemo - Chart Updates with Date Range', () => {
       json: async () => mockSuccessResponse
     });
 
-    render(<ApiDemo />);
+    render(<DatabaseDemo />);
 
     const refreshButton = screen.getByRole('button', { name: /refresh data/i });
     fireEvent.click(refreshButton);
@@ -234,7 +234,7 @@ describe('ApiDemo - Chart Updates with Date Range', () => {
   });
 });
 
-describe('ApiDemo - Data Transformation Functions', () => {
+describe('DatabaseDemo - Data Transformation Functions', () => {
   test('transformToCandlestickData converts daily range data correctly', () => {
     const dailyRangeData = [
       {
@@ -257,19 +257,12 @@ describe('ApiDemo - Data Transformation Functions', () => {
       }
     ];
 
-    // Create a temporary component instance to access the transformation function
-    const { container } = render(<ApiDemo />);
-    
-    // Since transformToCandlestickData is defined inside the component,
-    // we'll verify the transformation by checking the rendered chart data
-    // This is an indirect test through the component's behavior
-    
+    // Verify the expected transformation format
     const expectedFormat = dailyRangeData.map(day => ({
       x: day.date,
       y: [day.avg, day.max, day.min, day.avg]
     }));
 
-    // Verify the expected format structure
     expect(expectedFormat[0]).toEqual({
       x: '01/01/2025',
       y: [2.25, 3.0, 1.5, 2.25]
@@ -296,10 +289,17 @@ describe('ApiDemo - Data Transformation Functions', () => {
       }
     ];
 
-    // Verify the expected transformation format
-    const expectedFormat = hourlyData.map(hour => hour.consumption);
+    // Verify the expected transformation format for DatabaseDemo
+    // DatabaseDemo uses {x, y} format for bar data
+    const expectedFormat = hourlyData.map(hour => ({
+      x: hour.label,
+      y: hour.consumption
+    }));
 
-    expect(expectedFormat).toEqual([1.5, 2.0]);
+    expect(expectedFormat).toEqual([
+      { x: '00:00 1 Jan', y: 1.5 },
+      { x: '01:00 1 Jan', y: 2.0 }
+    ]);
     expect(expectedFormat.length).toBe(2);
   });
 
@@ -315,7 +315,10 @@ describe('ApiDemo - Data Transformation Functions', () => {
 
   test('transformToBarData handles empty array', () => {
     const emptyData = [];
-    const result = emptyData.map(hour => hour.consumption);
+    const result = emptyData.map(hour => ({
+      x: hour.label,
+      y: hour.consumption
+    }));
 
     expect(result).toEqual([]);
   });

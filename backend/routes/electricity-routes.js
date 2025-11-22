@@ -53,6 +53,8 @@ async function queryConsumptionData(meteringPointId, dateFrom, dateTo, aggregati
 
 // Format database results to match Eloverblik API structure
 function formatForFrontend(dbResults) {
+    console.log('🔄 Formatting', dbResults.length, 'records for frontend');
+    
     // Group results by day
     const periodsByDay = {};
     
@@ -67,13 +69,16 @@ function formatForFrontend(dbResults) {
             };
         }
         
-        const hour = timestamp.getHours() + 1; // 1-24 format
+        const hour = timestamp.getUTCHours() + 1; // 1-24 format, use UTC to match database
         periodsByDay[dayKey].Point.push({
             position: hour.toString(),
             "out_Quantity.quantity": record.quantity.toString(),
             "out_Quantity.quality": record.quality || "OK"
         });
     });
+    
+    console.log('🔄 Grouped into', Object.keys(periodsByDay).length, 'days');
+    console.log('🔄 First day points:', periodsByDay[Object.keys(periodsByDay)[0]]?.Point?.length);
     
     return {
         result: [{
@@ -89,7 +94,44 @@ function formatForFrontend(dbResults) {
     };
 }
 
-router.get('/test-data/', async (req, res) => {
+/**
+ * @swagger
+ * /api/test-data:
+ *   get:
+ *     summary: Fetch electricity consumption data from Eloverblik API
+ *     description: Retrieves hourly electricity consumption data directly from the Eloverblik API for a specified date range
+ *     tags:
+ *       - Electricity Data
+ *     parameters:
+ *       - in: query
+ *         name: dateFrom
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *           example: "2024-01-01"
+ *         description: Start date (YYYY-MM-DD)
+ *       - in: query
+ *         name: dateTo
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *           example: "2024-01-31"
+ *         description: End date (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved consumption data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *       400:
+ *         description: Missing required query parameters
+ *       500:
+ *         description: Failed to fetch data from Eloverblik API
+ */
+router.get('/test-data', async (req, res) => {
     const { dateFrom, dateTo } = req.query;
 
     if (!dateFrom || !dateTo) {
@@ -121,6 +163,43 @@ router.get('/test-data/', async (req, res) => {
     }
 });
 
+/**
+ * @swagger
+ * /api/database-demo:
+ *   get:
+ *     summary: Fetch electricity consumption data from local database
+ *     description: Retrieves hourly electricity consumption data from the local PostgreSQL database for a specified date range
+ *     tags:
+ *       - Electricity Data
+ *     parameters:
+ *       - in: query
+ *         name: dateFrom
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *           example: "2024-01-01"
+ *         description: Start date (YYYY-MM-DD)
+ *       - in: query
+ *         name: dateTo
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *           example: "2024-01-31"
+ *         description: End date (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved consumption data from database
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *       400:
+ *         description: Missing required query parameters
+ *       500:
+ *         description: Failed to fetch data from database
+ */
 // Database demo endpoint
 router.get('/database-demo', async (req, res) => {
     const { dateFrom, dateTo } = req.query;
@@ -133,6 +212,12 @@ router.get('/database-demo', async (req, res) => {
     }
     
     try {
+        console.log('📊 Database query:', { 
+            meteringPointId: METERING_POINT_ID, 
+            dateFrom, 
+            dateTo 
+        });
+        
         // Query database
         const results = await queryConsumptionData(
             METERING_POINT_ID,
@@ -140,6 +225,12 @@ router.get('/database-demo', async (req, res) => {
             dateTo,
             'Hour'
         );
+        
+        console.log('📊 Query results:', { 
+            recordCount: results.length,
+            firstRecord: results[0],
+            lastRecord: results[results.length - 1]
+        });
         
         // Format for frontend
         const formattedData = formatForFrontend(results);

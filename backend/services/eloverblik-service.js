@@ -13,10 +13,12 @@ class EloverblikService {
     async getAccessToken() {
         // Return cached token if it's still valid
         if (this.accessToken && this.tokenExpiry > Date.now()) {
+            logger.debug('Using cached access token');
             return this.accessToken;
         }
 
         try {
+            logger.info('Requesting new access token from Eloverblik');
             const response = await axios.get(`${ELOVERBLIK_BASE_URL}/token`, {
                 headers: { 'Authorization': `Bearer ${this.refreshToken}` }
             });
@@ -25,9 +27,15 @@ class EloverblikService {
             // Set token expiry to 1 hour from now (token typically expires in 1 hour)
             this.tokenExpiry = Date.now() + (60 * 60 * 1000) - 30000; // 30 seconds buffer
             
+            logger.info('Successfully obtained access token');
             return this.accessToken;
         } catch (error) {
-            logger.error('Error getting access token:', error);
+            logger.error('Error getting access token:', {
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                data: error.response?.data,
+                message: error.message
+            });
             throw new Error('Failed to get access token from Eloverblik');
         }
     }
@@ -35,6 +43,21 @@ class EloverblikService {
     async getConsumptionData(meteringPointId, dateFrom, dateTo) {
         try {
             const accessToken = await this.getAccessToken();
+            
+            console.log('🔍 Fetching consumption data from Eloverblik:', {
+                meteringPointId,
+                dateFrom,
+                dateTo,
+                url: `${ELOVERBLIK_BASE_URL}/meterdata/gettimeseries/${dateFrom}/${dateTo}/Hour`,
+                tokenLength: accessToken?.length
+            });
+            
+            logger.info('Fetching consumption data from Eloverblik', {
+                meteringPointId,
+                dateFrom,
+                dateTo,
+                url: `${ELOVERBLIK_BASE_URL}/meterdata/gettimeseries/${dateFrom}/${dateTo}/Hour`
+            });
             
             const response = await axios.post(
                 `${ELOVERBLIK_BASE_URL}/meterdata/gettimeseries/${dateFrom}/${dateTo}/Hour`,
@@ -53,13 +76,30 @@ class EloverblikService {
                 }
             );
 
+            logger.info('Successfully fetched consumption data', {
+                recordCount: response.data?.result?.length || 0
+            });
+            
             return response.data;
         } catch (error) {
+            console.error('❌ Error fetching consumption data:', {
+                meteringPointId,
+                dateFrom,
+                dateTo,
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                responseData: error.response?.data,
+                errorMessage: error.message
+            });
+            
             logger.error('Error fetching consumption data:', {
                 meteringPointId,
                 dateFrom,
                 dateTo,
-                error: error.response?.data || error.message
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                responseData: error.response?.data,
+                error: error.message
             });
             
             if (error.response?.status === 401) {

@@ -2,19 +2,32 @@
 // Provides consistent styling and configuration across all charts
 
 // Base theme colors matching Material-UI
-export const chartColors = {
+const lightColors = {
   primary: '#8884d8',
   success: '#00E396',
   danger: '#FF6B6B',
-  light: '#E3F2FD',
   text: '#263238',
   grid: '#e0e0e0'
 };
 
+const darkColors = {
+  primary: '#00E5FF', // Cyan
+  success: '#00E676', // Bright Green
+  danger: '#FF4081',  // Pink/Red
+  text: '#FFFFFF',
+  grid: '#424242'
+};
+
+// Helper to get colors based on mode
+const getColors = (mode) => mode === 'dark' ? darkColors : lightColors;
+
 // Common base chart options
-export const getBaseChartOptions = () => {
+export const getBaseChartOptions = (mode = 'light') => {
+  const colors = getColors(mode);
+
   return {
     chart: {
+      background: 'transparent',
       toolbar: {
         show: true,
         tools: {
@@ -24,27 +37,34 @@ export const getBaseChartOptions = () => {
           reset: true
         }
       },
-      fontFamily: 'Roboto, Arial, sans-serif'
+      fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
     },
     grid: {
-      borderColor: chartColors.grid,
+      borderColor: colors.grid,
       strokeDashArray: 3
     },
     theme: {
-      mode: 'light'
+      mode: mode
+    },
+    // Global text styles
+    dataLabels: {
+      style: {
+        colors: [colors.text]
+      }
     }
   };
 };
 
 // Candlestick-specific chart options
-export const getCandlestickOptions = (categories, zeroDataDates = []) => {
-  const baseOptions = getBaseChartOptions();
-  
+export const getCandlestickOptions = (categories, zeroDataDates = [], mode = 'light') => {
+  const colors = getColors(mode);
+  const baseOptions = getBaseChartOptions(mode);
+
   // Create array of colors for x-axis labels (red for zero-data days)
-  const labelColors = categories.map(date => 
-    zeroDataDates.includes(date) ? '#FF6B6B' : chartColors.text
+  const labelColors = categories.map(date =>
+    zeroDataDates.includes(date) ? colors.danger : colors.text
   );
-  
+
   return {
     ...baseOptions,
     chart: {
@@ -58,7 +78,7 @@ export const getCandlestickOptions = (categories, zeroDataDates = []) => {
       style: {
         fontSize: '16px',
         fontWeight: 600,
-        color: chartColors.text
+        color: colors.text
       }
     },
     xaxis: {
@@ -71,6 +91,12 @@ export const getCandlestickOptions = (categories, zeroDataDates = []) => {
           fontSize: '12px',
           colors: labelColors
         }
+      },
+      axisBorder: {
+        color: colors.grid
+      },
+      axisTicks: {
+        color: colors.grid
       }
     },
     yaxis: {
@@ -78,25 +104,33 @@ export const getCandlestickOptions = (categories, zeroDataDates = []) => {
         text: 'Consumption (kWh)',
         style: {
           fontSize: '12px',
-          color: chartColors.text
+          color: colors.text
         }
       },
       labels: {
         style: {
           fontSize: '12px',
-          colors: chartColors.text
+          colors: colors.text
+        },
+        formatter: (value) => {
+          return value.toFixed(1);
         }
       }
     },
     tooltip: {
-      custom: function({ seriesIndex, dataPointIndex, w }) {
+      theme: mode,
+      custom: function ({ seriesIndex, dataPointIndex, w }) {
         const data = w.globals.initialSeries[seriesIndex].data[dataPointIndex];
+        const bgColor = mode === 'dark' ? '#1e1e1e' : 'white';
+        const borderColor = mode === 'dark' ? '#444' : '#e0e0e0';
+        const textColor = mode === 'dark' ? '#fff' : '#333';
+
         return `
-          <div style="padding: 10px; background: white; border: 1px solid ${chartColors.grid}; border-radius: 4px;">
+          <div style="padding: 10px; background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 4px; color: ${textColor}">
             <div style="margin-bottom: 5px; font-weight: 600;">Date: ${data.x}</div>
-            <div style="color: ${chartColors.success};">High: ${data.y[1].toFixed(3)} kWh</div>
-            <div style="color: ${chartColors.danger};">Low: ${data.y[2].toFixed(3)} kWh</div>
-            <div style="color: ${chartColors.primary};">Average: ${data.y[0].toFixed(3)} kWh</div>
+            <div style="color: ${colors.success};">High: ${data.y[1].toFixed(3)} kWh</div>
+            <div style="color: ${colors.danger};">Low: ${data.y[2].toFixed(3)} kWh</div>
+            <div style="color: ${colors.primary};">Average: ${data.y[0].toFixed(3)} kWh</div>
           </div>
         `;
       }
@@ -104,8 +138,11 @@ export const getCandlestickOptions = (categories, zeroDataDates = []) => {
     plotOptions: {
       candlestick: {
         colors: {
-          upward: chartColors.success,
-          downward: chartColors.danger
+          upward: colors.success,
+          downward: colors.danger
+        },
+        wick: {
+          useFillColor: true
         }
       }
     }
@@ -113,10 +150,11 @@ export const getCandlestickOptions = (categories, zeroDataDates = []) => {
 };
 
 // Horizontal bar chart options
-export const getHorizontalBarOptions = (categories, dataLength) => {
-  const baseOptions = getBaseChartOptions();
+export const getHorizontalBarOptions = (categories, dataLength, mode = 'light') => {
+  const colors = getColors(mode);
+  const baseOptions = getBaseChartOptions(mode);
   const dynamicHeight = Math.max(dataLength * 25 + 200, 600);
-  
+
   return {
     ...baseOptions,
     chart: {
@@ -154,7 +192,7 @@ export const getHorizontalBarOptions = (categories, dataLength) => {
       style: {
         fontSize: '16px',
         fontWeight: 600,
-        color: chartColors.text
+        color: colors.text
       }
     },
     xaxis: {
@@ -163,31 +201,38 @@ export const getHorizontalBarOptions = (categories, dataLength) => {
         text: 'Consumption (kWh)',
         style: {
           fontSize: '12px',
-          color: chartColors.text
+          color: colors.text
         }
       },
       labels: {
         style: {
           fontSize: '12px',
-          colors: chartColors.text
+          colors: colors.text
         }
+      },
+      axisBorder: {
+        color: colors.grid
+      },
+      axisTicks: {
+        color: colors.grid
       }
     },
     yaxis: {
       labels: {
         style: {
           fontSize: '10px',
-          colors: chartColors.text
+          colors: colors.text
         }
       }
     },
     tooltip: {
+      theme: mode,
       y: {
-        formatter: function(value) {
+        formatter: function (value) {
           return value.toFixed(3) + ' kWh';
         }
       }
     },
-    colors: [chartColors.primary]
+    colors: [colors.primary]
   };
 };

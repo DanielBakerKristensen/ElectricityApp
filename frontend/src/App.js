@@ -1,48 +1,29 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { ThemeProvider, CssBaseline } from '@mui/material';
+import theme from './theme/theme';
+import DashboardLayout from './layouts/DashboardLayout';
+import Dashboard from './pages/Dashboard';
+import Analysis from './pages/Analysis';
+import Settings from './pages/Settings';
 import ApiDemo from './components/ApiDemo';
-import DatabaseDemo from './components/DatabaseDemo';
 import './App.css';
 
-// Main App component with routing
 function App() {
   return (
-    <Router>
-      <div className="App">
-        <header className="App-header">
-          <h1>⚡ Electricity Consumption App</h1>
-          <p>Monitor your electricity usage with data from Eloverblik</p>
-          <p>By Daniel Baker Kristensen</p>
-        </header>
-
-        <main className="App-content">
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Router>
+        <DashboardLayout>
           <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/demo" element={<ApiDemo />} />
-            <Route path="/database-demo" element={<DatabaseDemo />} />
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/analysis" element={<Analysis />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/api-demo" element={<ApiDemo />} />
           </Routes>
-        </main>
-
-        <footer className="App-footer">
-          <nav>
-            <Link to="/">Home</Link> | 
-            <Link to="/demo">API Demo</Link> |
-            <Link to="/database-demo">Database Demo</Link>
-          </nav>
-          <p>© {new Date().getFullYear()} Electricity App</p>
-        </footer>
-      </div>
-    </Router>
-  );
-}
-
-// Home component for the main page
-function Home() {
-  return (
-    <div className="home-container">
-      <h2>Welcome to the Electricity Consumption App</h2>
-      <p>Use the navigation above to explore the application.</p>
-    </div>
+        </DashboardLayout>
+      </Router>
+    </ThemeProvider>
   );
 }
 

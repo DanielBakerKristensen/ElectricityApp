@@ -70,7 +70,13 @@ const Analysis = () => {
         setLoading(true);
         setError(null);
         try {
-            const formatDate = (date) => date.toISOString().split('T')[0];
+            // Format using local date to avoid timezone issues
+            const formatDate = (date) => {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            };
             const response = await fetch(`/api/database-demo?dateFrom=${formatDate(startDate)}&dateTo=${formatDate(endDate)}`);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);

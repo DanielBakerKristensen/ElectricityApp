@@ -12,7 +12,13 @@ const ApiDemo = () => {
         const startDate = new Date(endDate);
         startDate.setDate(startDate.getDate() - 7); // 7 days before end (9 days ago from today)
 
-        const formatDate = (date) => date.toISOString().split('T')[0]; // YYYY-MM-DD
+        // Format using local date to avoid timezone issues
+        const formatDate = (date) => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
 
         return {
             startDate: formatDate(startDate),

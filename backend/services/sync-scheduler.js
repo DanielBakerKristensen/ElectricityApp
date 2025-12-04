@@ -14,12 +14,12 @@ class SyncScheduler {
         this.syncService = syncService;
         this.logger = loggerInstance || logger;
         this.cronJob = null;
-        
+
         // Read configuration from environment variables
         this.enabled = process.env.SYNC_ENABLED !== 'false';
         this.schedule = process.env.SYNC_SCHEDULE || '0 14 * * *'; // Default: daily at 2 PM
         this.daysBack = parseInt(process.env.SYNC_DAYS_BACK || '1');
-        
+
         // Validate cron expression format
         if (!cron.validate(this.schedule)) {
             this.logger.error('Invalid cron expression format', {
@@ -28,7 +28,7 @@ class SyncScheduler {
             });
             this.enabled = false; // Disable scheduler if cron expression is invalid
         }
-        
+
         this.logger.info('SyncScheduler initialized', {
             enabled: this.enabled,
             schedule: this.schedule,
@@ -88,7 +88,7 @@ class SyncScheduler {
         try {
             this.cronJob.stop();
             this.cronJob = null;
-            
+
             this.logger.info('Sync scheduler stopped successfully');
         } catch (error) {
             this.logger.error('Error stopping sync scheduler', {
@@ -102,14 +102,20 @@ class SyncScheduler {
      * Manually trigger a sync execution (for testing/admin purposes)
      * @returns {Promise<Object>} Sync result with success status, records synced, and log ID
      */
-    async triggerManualSync() {
+    async triggerManualSync(options = {}) {
+        const daysBack = options.daysBack || this.daysBack;
+
         this.logger.info('Manual sync triggered', {
-            daysBack: this.daysBack
+            daysBack,
+            dateFrom: options.dateFrom,
+            dateTo: options.dateTo
         });
 
         try {
             const result = await this.syncService.syncConsumptionData({
-                daysBack: this.daysBack
+                daysBack,
+                dateFrom: options.dateFrom,
+                dateTo: options.dateTo
             });
 
             this.logger.info('Manual sync completed', {

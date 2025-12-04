@@ -27,19 +27,19 @@ class SyncService {
      */
     calculateDateRange(daysBack = 1) {
         const today = new Date();
-        
+
         // Sync the day before yesterday (2 days ago)
         // Eloverblik data is typically available 1-2 days after consumption
         // By syncing 2 days ago, we ensure the data is definitely available
         const targetDate = new Date(today);
         targetDate.setDate(today.getDate() - 2); // Day before yesterday
-        
+
         // For the API, dateFrom is the target date and dateTo is the next day
         // This gives us exactly one day of data
         const dateFrom = new Date(targetDate);
         const dateTo = new Date(targetDate);
         dateTo.setDate(targetDate.getDate() + 1); // Next day (API uses exclusive end date)
-        
+
         // Format as YYYY-MM-DD
         const formatDate = (date) => {
             const year = date.getFullYear();
@@ -47,7 +47,7 @@ class SyncService {
             const day = String(date.getDate()).padStart(2, '0');
             return `${year}-${month}-${day}`;
         };
-        
+
         return {
             dateFrom: formatDate(dateFrom),
             dateTo: formatDate(dateTo)
@@ -61,10 +61,19 @@ class SyncService {
      * @returns {Promise<Object>} Sync result with success status, records synced, and log ID
      */
     async syncConsumptionData(options = {}) {
-        const daysBack = options.daysBack || parseInt(process.env.SYNC_DAYS_BACK || '1');
-        const { dateFrom, dateTo } = this.calculateDateRange(daysBack);
+        let dateFrom, dateTo;
+
+        if (options.dateFrom && options.dateTo) {
+            dateFrom = options.dateFrom;
+            dateTo = options.dateTo;
+        } else {
+            const daysBack = options.daysBack || parseInt(process.env.SYNC_DAYS_BACK || '1');
+            const range = this.calculateDateRange(daysBack);
+            dateFrom = range.dateFrom;
+            dateTo = range.dateTo;
+        }
         let logId = null;
-        
+
         this.logger.info('Sync started', {
             meteringPointId: this.meteringPointId,
             dateFrom,
@@ -112,12 +121,12 @@ class SyncService {
                         dateFrom,
                         dateTo
                     });
-                    
+
                     await this.updateSyncLog(logId, {
                         status: 'error',
                         errorMessage: errorMsg
                     });
-                    
+
                     return {
                         success: false,
                         error: errorMsg,
@@ -134,12 +143,12 @@ class SyncService {
                         dateTo,
                         error: apiError.message
                     });
-                    
+
                     await this.updateSyncLog(logId, {
                         status: 'error',
                         errorMessage: errorMsg
                     });
-                    
+
                     return {
                         success: false,
                         error: errorMsg,
@@ -155,12 +164,12 @@ class SyncService {
                         dateFrom,
                         dateTo
                     });
-                    
+
                     await this.updateSyncLog(logId, {
                         status: 'error',
                         errorMessage: errorMsg
                     });
-                    
+
                     return {
                         success: false,
                         error: errorMsg,
@@ -176,12 +185,12 @@ class SyncService {
                     dateTo,
                     error: apiError.response?.data || apiError.message
                 });
-                
+
                 await this.updateSyncLog(logId, {
                     status: 'error',
                     errorMessage: errorMsg
                 });
-                
+
                 return {
                     success: false,
                     error: errorMsg,
@@ -193,7 +202,7 @@ class SyncService {
             let records;
             try {
                 records = this.parseConsumptionData(apiResponse, this.meteringPointId);
-                
+
                 this.logger.info('Parsed consumption data', {
                     recordCount: records.length,
                     dateFrom,
@@ -207,12 +216,12 @@ class SyncService {
                     dateTo,
                     error: parseError.message
                 });
-                
+
                 await this.updateSyncLog(logId, {
                     status: 'error',
                     errorMessage: errorMsg
                 });
-                
+
                 return {
                     success: false,
                     error: errorMsg,
@@ -234,12 +243,12 @@ class SyncService {
                     recordCount: records.length,
                     error: dbError.message
                 });
-                
+
                 await this.updateSyncLog(logId, {
                     status: 'error',
                     errorMessage: errorMsg
                 });
-                
+
                 return {
                     success: false,
                     error: errorMsg,
@@ -329,7 +338,7 @@ class SyncService {
                         // Calculate timestamp based on position
                         const position = parseInt(point.position) - 1; // Position is 1-indexed
                         const timestamp = new Date(periodStart);
-                        
+
                         // Add hours based on position (assuming hourly resolution)
                         if (resolution === 'PT1H') {
                             timestamp.setHours(timestamp.getHours() + position);
@@ -339,8 +348,8 @@ class SyncService {
                             metering_point_id: meteringPointId,
                             timestamp: timestamp,
                             aggregation_level: 'Hour',
-                            quantity: parseFloat(point.out_Quantity?.quantity || 0),
-                            quality: point.out_Quantity?.quality || 'OK',
+                            quantity: parseFloat(point['out_Quantity.quantity'] || 0),
+                            quality: point['out_Quantity.quality'] || 'OK',
                             measurement_unit: measurementUnit
                         });
                     });

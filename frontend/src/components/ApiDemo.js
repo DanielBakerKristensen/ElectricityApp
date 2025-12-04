@@ -8,12 +8,12 @@ const ApiDemo = () => {
     const calculateDefaultDates = () => {
         const endDate = new Date();
         endDate.setDate(endDate.getDate() - 2); // 2 days ago
-        
+
         const startDate = new Date(endDate);
         startDate.setDate(startDate.getDate() - 7); // 7 days before end (9 days ago from today)
-        
+
         const formatDate = (date) => date.toISOString().split('T')[0]; // YYYY-MM-DD
-        
+
         return {
             startDate: formatDate(startDate),
             endDate: formatDate(endDate)
@@ -31,24 +31,57 @@ const ApiDemo = () => {
     const [endDate, setEndDate] = useState(defaultDates.endDate);
     const [dateError, setDateError] = useState(null);
 
+    // Config state
+    const [tokens, setTokens] = useState([]);
+    const [meteringPoints, setMeteringPoints] = useState([]);
+    const [selectedTokenId, setSelectedTokenId] = useState('');
+    const [selectedMpId, setSelectedMpId] = useState('');
+
+    // Fetch configs on mount
+    React.useEffect(() => {
+        const fetchConfigs = async () => {
+            try {
+                const [tokensRes, mpsRes] = await Promise.all([
+                    fetch('/api/settings/tokens'),
+                    fetch('/api/settings/metering-points')
+                ]);
+
+                if (tokensRes.ok && mpsRes.ok) {
+                    const tokensData = await tokensRes.json();
+                    const mpsData = await mpsRes.json();
+
+                    setTokens(tokensData);
+                    setMeteringPoints(mpsData);
+
+                    // Select defaults if available
+                    if (tokensData.length > 0) setSelectedTokenId(tokensData[0].id);
+                    if (mpsData.length > 0) setSelectedMpId(mpsData[0].id);
+                }
+            } catch (err) {
+                console.error('Failed to fetch settings:', err);
+            }
+        };
+        fetchConfigs();
+    }, []);
+
     // Date validation function
     const validateDateRange = (start, end) => {
         const startDate = new Date(start);
         const endDate = new Date(end);
-        
+
         // Check if start is after end
         if (startDate > endDate) {
             return "Start date must be before or equal to end date";
         }
-        
+
         // Check if range exceeds 730 days (API limitation)
         const diffTime = Math.abs(endDate - startDate);
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
+
         if (diffDays > 730) {
             return "Date range cannot exceed 730 days (API limitation)";
         }
-        
+
         return null; // No error
     };
 
@@ -66,10 +99,10 @@ const ApiDemo = () => {
     // Helper function to format dates in readable format
     const formatDisplayDate = (dateString) => {
         const date = new Date(dateString);
-        return date.toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'short', 
-            day: 'numeric' 
+        return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
         });
     };
 
@@ -85,8 +118,17 @@ const ApiDemo = () => {
         setError(null);
         setDateError(null); // Clear any previous date errors
         try {
-            // Use startDate and endDate state values in the API call
-            const response = await fetch(`/api/test-data?dateFrom=${startDate}&dateTo=${endDate}`);
+            // Build URL with separate token and metering point IDs
+            let url = `/api/test-data?dateFrom=${startDate}&dateTo=${endDate}`;
+
+            if (selectedTokenId) {
+                url += `&tokenId=${selectedTokenId}`;
+            }
+            if (selectedMpId) {
+                url += `&meteringPointId=${selectedMpId}`;
+            }
+
+            const response = await fetch(url);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -237,41 +279,90 @@ const ApiDemo = () => {
         return hourlyData.map(hour => hour.consumption);
     };
 
-
-
     return (
         <div className="api-demo">
             <div className="demo-header">
                 <h2>📈 Electricity Consumption Analysis</h2>
                 <p>Daily consumption ranges and hourly details for the past week</p>
-                
+
                 <div className="date-picker-container">
+                    <div className="config-group" style={{ display: 'flex', gap: '15px', marginBottom: '15px', flexWrap: 'wrap' }}>
+                        {/* Token Selector */}
+                        <div className="config-selector" style={{ flex: 1, minWidth: '200px' }}>
+                            <label htmlFor="token-select" style={{ display: 'block', marginBottom: '5px' }}>Refresh Token</label>
+                            <select
+                                id="token-select"
+                                value={selectedTokenId}
+                                onChange={(e) => setSelectedTokenId(e.target.value)}
+                                style={{
+                                    padding: '8px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #ccc',
+                                    width: '100%'
+                                }}
+                            >
+                                <option value="">Default (.env)</option>
+                                {tokens.map(token => (
+                                    <option key={token.id} value={token.id}>
+                                        {token.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Metering Point Selector */}
+                        <div className="config-selector" style={{ flex: 1, minWidth: '200px' }}>
+                            <label htmlFor="mp-select" style={{ display: 'block', marginBottom: '5px' }}>Metering Point</label>
+                            <select
+                                id="mp-select"
+                                value={selectedMpId}
+                                onChange={(e) => setSelectedMpId(e.target.value)}
+                                style={{
+                                    padding: '8px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #ccc',
+                                    width: '100%'
+                                }}
+                            >
+                                <option value="">Default (.env)</option>
+                                {meteringPoints.map(mp => (
+                                    <option key={mp.id} value={mp.id}>
+                                        {mp.name} ({mp.meteringPointId})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
                     <div className="date-input-group">
                         <label htmlFor="start-date">Start Date</label>
-                        <input 
-                            type="date" 
+                        <input
+                            type="date"
                             id="start-date"
                             value={startDate}
                             onChange={handleStartDateChange}
+                            max={new Date().toISOString().split('T')[0]}
                         />
                     </div>
                     <div className="date-input-group">
                         <label htmlFor="end-date">End Date</label>
-                        <input 
-                            type="date" 
+                        <input
+                            type="date"
                             id="end-date"
                             value={endDate}
                             onChange={handleEndDateChange}
+                            min={startDate}
+                            max={new Date().toISOString().split('T')[0]}
                         />
                     </div>
                 </div>
-                
+
                 {dateError && <div className="date-error">{dateError}</div>}
-                
+
                 <div className="date-range-display">
                     Showing data from {formatDisplayDate(startDate)} to {formatDisplayDate(endDate)}
                 </div>
-                
+
                 <button
                     onClick={fetchData}
                     disabled={loading}

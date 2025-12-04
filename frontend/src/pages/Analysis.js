@@ -17,13 +17,13 @@ import AnalysisToolbar from '../components/AnalysisToolbar';
 const Analysis = () => {
     const theme = useTheme();
 
-    // Helper function to calculate default date range
+    // Helper function to calculate default date range (matching ApiDemo)
     const calculateDefaultDates = () => {
         const endDate = new Date();
-        endDate.setDate(endDate.getDate() - 7);
+        endDate.setDate(endDate.getDate() - 2); // 2 days ago
 
         const startDate = new Date(endDate);
-        startDate.setDate(startDate.getDate() - 7);
+        startDate.setDate(startDate.getDate() - 7); // 7 days before end (9 days ago from today)
 
         return { startDate, endDate };
     };
@@ -41,9 +41,29 @@ const Analysis = () => {
     const [chartType, setChartType] = useState('candlestick');
     const [comparisonMode, setComparisonMode] = useState('none');
 
+    // Date validation function (matching ApiDemo)
+    const validateDateRange = (start, end) => {
+        // Check if start is after end
+        if (start > end) {
+            return "Start date must be before or equal to end date";
+        }
+
+        // Check if range exceeds 730 days (API limitation)
+        const diffTime = Math.abs(end - start);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays > 730) {
+            return "Date range cannot exceed 730 days (API limitation)";
+        }
+
+        return null; // No error
+    };
+
     const fetchData = async () => {
-        if (startDate > endDate) {
-            setError("Start date must be before or equal to end date");
+        // Validate date range before making API call
+        const validationError = validateDateRange(startDate, endDate);
+        if (validationError) {
+            setError(validationError);
             return;
         }
 

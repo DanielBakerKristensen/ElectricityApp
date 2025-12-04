@@ -50,12 +50,15 @@ const AnalysisToolbar = ({
                     label="Start Date"
                     value={startDate}
                     onChange={onStartDateChange}
+                    maxDate={new Date()}
                     slotProps={{ textField: { size: 'small', fullWidth: isMobile } }}
                 />
                 <DatePicker
                     label="End Date"
                     value={endDate}
                     onChange={onEndDateChange}
+                    minDate={startDate}
+                    maxDate={new Date()}
                     slotProps={{ textField: { size: 'small', fullWidth: isMobile } }}
                 />
 

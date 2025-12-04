@@ -8,12 +8,12 @@ const router = express.Router();
 function adminAuth(req, res, next) {
     const authHeader = req.headers.authorization;
     const adminToken = process.env.ADMIN_TOKEN;
-    
+
     // If no admin token is configured, allow access (for development)
     if (!adminToken) {
         return next();
     }
-    
+
     // Check for Bearer token format
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return res.status(401).json({
@@ -21,16 +21,16 @@ function adminAuth(req, res, next) {
             message: 'Missing or invalid authorization header'
         });
     }
-    
+
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-    
+
     if (token !== adminToken) {
         return res.status(403).json({
             error: 'Forbidden',
             message: 'Invalid admin token'
         });
     }
-    
+
     next();
 }
 
@@ -91,7 +91,7 @@ router.post('/trigger', adminAuth, async (req, res) => {
     try {
         // Get the sync scheduler instance from app locals
         const syncScheduler = req.app.locals.syncScheduler;
-        
+
         if (!syncScheduler) {
             return res.status(503).json({
                 success: false,
@@ -99,10 +99,11 @@ router.post('/trigger', adminAuth, async (req, res) => {
                 message: 'Sync scheduler may be disabled or not initialized'
             });
         }
-        
+
         // Trigger manual sync
-        const result = await syncScheduler.triggerManualSync();
-        
+        const { daysBack, dateFrom, dateTo } = req.body;
+        const result = await syncScheduler.triggerManualSync({ daysBack, dateFrom, dateTo });
+
         if (result.success) {
             return res.status(200).json({
                 success: true,
@@ -118,7 +119,7 @@ router.post('/trigger', adminAuth, async (req, res) => {
                 message: 'Sync failed'
             });
         }
-        
+
     } catch (error) {
         return res.status(500).json({
             success: false,

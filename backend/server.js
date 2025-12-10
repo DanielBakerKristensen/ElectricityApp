@@ -3,14 +3,14 @@ const fs = require('fs');
 
 // Auto-detect environment and load appropriate .env file
 // Check for Docker environment indicators
-const isDocker = fs.existsSync('/.dockerenv') || 
-                 process.env.DOCKER_ENV === 'true' ||
-                 process.env.HOSTNAME?.includes('docker') ||
-                 fs.existsSync('/proc/1/cgroup') && fs.readFileSync('/proc/1/cgroup', 'utf8').includes('docker');
+const isDocker = fs.existsSync('/.dockerenv') ||
+  process.env.DOCKER_ENV === 'true' ||
+  process.env.HOSTNAME?.includes('docker') ||
+  fs.existsSync('/proc/1/cgroup') && fs.readFileSync('/proc/1/cgroup', 'utf8').includes('docker');
 
 const envFile = isDocker ? '.env.docker' : '.env.local';
 // For Docker, check in current directory first, then parent
-const envPath = isDocker ? 
+const envPath = isDocker ?
   (fs.existsSync(path.join(__dirname, envFile)) ? path.join(__dirname, envFile) : path.join(__dirname, '..', envFile)) :
   path.join(__dirname, '..', envFile);
 
@@ -100,8 +100,23 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 }));
 
 // API Routes
-app.use('/api', require('./routes/electricity-routes'));
+// API Routes
+app.use('/api/settings', require('./routes/settings-routes'));
 app.use('/api/sync', require('./routes/sync-routes'));
+app.use('/api', require('./routes/electricity-routes'));
+
+// Register models
+require('./models/RefreshToken');
+require('./models/MeteringPoint');
+
+// Sync database in development
+if (process.env.NODE_ENV !== 'production') {
+  sequelize.sync({ alter: true }).then(() => {
+    logger.info('Database models synced');
+  }).catch(err => {
+    logger.error('Failed to sync database models:', err);
+  });
+}
 
 /**
  * @swagger
@@ -210,7 +225,7 @@ app.use((err, req, res, next) => {
     query: req.query,
     body: req.body
   });
-  
+
   res.status(500).json({
     error: 'Internal Server Error',
     message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong!',
@@ -220,7 +235,7 @@ app.use((err, req, res, next) => {
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).json({ 
+  res.status(404).json({
     error: 'Not Found',
     message: `Cannot ${req.method} ${req.originalUrl}`
   });
@@ -235,17 +250,20 @@ const server = app.listen(PORT, async () => {
     await testConnection();
     logger.info(`Server running on port ${PORT}`);
     logger.info(`API Documentation available at http://localhost:${PORT}/api-docs`);
-    
+
     // Initialize sync scheduler after database connection is established
     if (process.env.SYNC_ENABLED !== 'false') {
       try {
         const syncService = new SyncService(eloverblikService, sequelize, logger);
         syncScheduler = new SyncScheduler(syncService, logger);
-        syncScheduler.start();
-        
+        // Delay start to allow server to fully initialize
+        setTimeout(() => {
+          syncScheduler.start();
+        }, 10000);
+
         // Store syncScheduler in app.locals for access by routes
         app.locals.syncScheduler = syncScheduler;
-        
+
         logger.info('Sync scheduler initialized and started');
       } catch (schedulerError) {
         logger.error('Failed to initialize sync scheduler:', schedulerError);
@@ -263,7 +281,7 @@ const server = app.listen(PORT, async () => {
 // Graceful shutdown handler
 const gracefulShutdown = (signal) => {
   logger.info(`${signal} received, shutting down gracefully`);
-  
+
   // Stop the sync scheduler first
   if (syncScheduler) {
     try {
@@ -273,11 +291,11 @@ const gracefulShutdown = (signal) => {
       logger.error('Error stopping sync scheduler:', error);
     }
   }
-  
+
   // Close the server
   server.close(async () => {
     logger.info('HTTP server closed');
-    
+
     // Close database connections
     try {
       await sequelize.close();
@@ -285,10 +303,10 @@ const gracefulShutdown = (signal) => {
     } catch (error) {
       logger.error('Error closing database connections:', error);
     }
-    
+
     process.exit(0);
   });
-  
+
   // Force shutdown after 10 seconds if graceful shutdown fails
   setTimeout(() => {
     logger.error('Forced shutdown after timeout');

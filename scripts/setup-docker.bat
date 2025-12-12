@@ -1,4 +1,6 @@
 @echo off
+cd /d "%~dp0.."
+
 echo 🐳 Setting up Electricity App for DOCKER deployment...
 echo.
 
@@ -17,7 +19,7 @@ if exist ".env.docker.example" (
     copy .env.docker.example .env.docker >nul
     echo ✅ Created .env.docker from template
 ) else (
-    echo ❌ Error: .env.docker.example not found!
+    echo ❌ Error: .env.docker.example not found in project root!
     exit /b 1
 )
 

@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Navigate to project root
+cd "$(dirname "$0")/.."
+
 echo "🐳 Setting up Electricity App for DOCKER deployment..."
 echo ""
 
@@ -19,7 +22,7 @@ if [ -f ".env.docker.example" ]; then
     cp .env.docker.example .env.docker
     echo "✅ Created .env.docker from template"
 else
-    echo "❌ Error: .env.docker.example not found!"
+    echo "❌ Error: .env.docker.example not found in project root!"
     exit 1
 fi
 

@@ -94,13 +94,25 @@ router.post('/metering-points', async (req, res) => {
         console.log('📝 POST /metering-points received:', req.body);
         const { name, meteringPointId } = req.body;
 
-        if (!meteringPointId) {
+
+        // Validate Metering Point ID
+        let cleanMeteringPointId = meteringPointId ? meteringPointId.trim() : '';
+
+        if (!cleanMeteringPointId) {
             return res.status(400).json({ error: 'Metering Point ID is required' });
+        }
+
+        if (cleanMeteringPointId.length !== 18) {
+            return res.status(400).json({ error: 'Metering Point ID must be exactly 18 digits' });
+        }
+
+        if (!/^\d+$/.test(cleanMeteringPointId)) {
+            return res.status(400).json({ error: 'Metering Point ID must contain only digits' });
         }
 
         const newMp = await MeteringPoint.create({
             name: name || 'My Meter',
-            meteringPointId
+            meteringPointId: cleanMeteringPointId
         });
 
         res.status(201).json(newMp);

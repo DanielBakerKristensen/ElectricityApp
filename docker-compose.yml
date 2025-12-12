@@ -95,9 +95,9 @@ services:
       - REACT_APP_API_URL=http://backend:5000/api
       - REACT_APP_PROXY_TARGET=http://backend:5000
       - CHOKIDAR_USEPOLLING=true
-      - WATCHPACK_POLLING=true
+      - WATCHPACK_POLLING=false
       - WDS_SOCKET_PORT=3000
-      - NODE_OPTIONS=--max-old-space-size=4096
+      - NODE_OPTIONS=--max-old-space-size=3072
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -110,7 +110,7 @@ services:
       - electricity-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (r) => {if(r.statusCode !== 200) throw new Error()}).on('error', () => process.exit(1))"]
+      test: [ "CMD", "node", "-e", "require('http').get('http://localhost:3000', (r) => {if(r.statusCode !== 200) throw new Error()}).on('error', () => process.exit(1))" ]
       interval: 30s
       timeout: 10s
       retries: 3

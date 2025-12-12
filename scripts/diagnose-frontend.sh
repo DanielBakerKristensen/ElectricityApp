@@ -1,10 +1,15 @@
 #!/bin/bash
 
+# Navigate to project root
+cd "$(dirname "$0")/.."
+
 # Frontend Diagnostic Script
 # Collects detailed information about the frontend container to diagnose crashes
 
 CONTAINER_NAME="electricity-frontend"
-OUTPUT_FILE="frontend-diagnostics-$(date +%Y%m%d-%H%M%S).log"
+LOG_DIR="logs"
+mkdir -p $LOG_DIR
+OUTPUT_FILE="$LOG_DIR/frontend-diagnostics-$(date +%Y%m%d-%H%M%S).log"
 
 echo "🔍 Frontend Diagnostics Report" | tee $OUTPUT_FILE
 echo "Generated: $(date)" | tee -a $OUTPUT_FILE

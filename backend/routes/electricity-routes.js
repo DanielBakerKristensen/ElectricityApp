@@ -159,7 +159,7 @@ router.get('/test-data', async (req, res) => {
             const MeteringPoint = require('../models/MeteringPoint');
             const mpDoc = await MeteringPoint.findByPk(mpId);
             if (mpDoc) {
-                meteringPointId = mpDoc.meteringPointId;
+                meteringPointId = mpDoc.meteringPointId.trim();
                 console.log(`🔌 Using metering point: ${mpDoc.name} (${meteringPointId})`);
             } else {
                 return res.status(404).json({ error: 'Metering Point not found' });

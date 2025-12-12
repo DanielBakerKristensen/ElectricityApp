@@ -1,9 +1,12 @@
 @echo off
+cd /d "%~dp0.."
+
 REM Frontend Diagnostic Script for Windows
 REM Collects detailed information about the frontend container to diagnose crashes
 
 set CONTAINER_NAME=electricity-frontend
-set OUTPUT_FILE=frontend-diagnostics-%date:~-4,4%%date:~-10,2%%date:~-7,2%-%time:~0,2%%time:~3,2%%time:~6,2%.log
+if not exist "logs" mkdir logs
+set OUTPUT_FILE=logs\frontend-diagnostics-%date:~-4,4%%date:~-10,2%%date:~-7,2%-%time:~0,2%%time:~3,2%%time:~6,2%.log
 set OUTPUT_FILE=%OUTPUT_FILE: =0%
 
 echo Frontend Diagnostics Report > %OUTPUT_FILE%

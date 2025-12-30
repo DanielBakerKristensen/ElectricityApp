@@ -22,10 +22,10 @@ async function run() {
         console.log('Initializing services...');
         const syncService = new SyncService(eloverblikService, sequelize, logger);
 
-        console.log('Starting backfill for range: 2025-11-14 to 2025-11-23');
+        console.log('Starting backfill for range: 2024-01-01 to 2024-12-31');
         const result = await syncService.syncConsumptionData({
-            dateFrom: '2025-11-14',
-            dateTo: '2025-11-23'
+            dateFrom: '2024-01-01',
+            dateTo: '2024-12-31'
         });
 
         console.log('Backfill completed. Result:', JSON.stringify(result, null, 2));

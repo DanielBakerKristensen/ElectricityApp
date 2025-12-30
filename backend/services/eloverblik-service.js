@@ -22,11 +22,11 @@ class EloverblikService {
             const response = await axios.get(`${ELOVERBLIK_BASE_URL}/token`, {
                 headers: { 'Authorization': `Bearer ${this.refreshToken}` }
             });
-            
+
             this.accessToken = response.data.result;
             // Set token expiry to 1 hour from now (token typically expires in 1 hour)
             this.tokenExpiry = Date.now() + (60 * 60 * 1000) - 30000; // 30 seconds buffer
-            
+
             logger.info('Successfully obtained access token');
             return this.accessToken;
         } catch (error) {
@@ -43,7 +43,7 @@ class EloverblikService {
     async getConsumptionData(meteringPointId, dateFrom, dateTo) {
         try {
             const accessToken = await this.getAccessToken();
-            
+
             console.log('🔍 Fetching consumption data from Eloverblik:', {
                 meteringPointId,
                 dateFrom,
@@ -51,14 +51,14 @@ class EloverblikService {
                 url: `${ELOVERBLIK_BASE_URL}/meterdata/gettimeseries/${dateFrom}/${dateTo}/Hour`,
                 tokenLength: accessToken?.length
             });
-            
+
             logger.info('Fetching consumption data from Eloverblik', {
                 meteringPointId,
                 dateFrom,
                 dateTo,
                 url: `${ELOVERBLIK_BASE_URL}/meterdata/gettimeseries/${dateFrom}/${dateTo}/Hour`
             });
-            
+
             const response = await axios.post(
                 `${ELOVERBLIK_BASE_URL}/meterdata/gettimeseries/${dateFrom}/${dateTo}/Hour`,
                 {
@@ -76,10 +76,12 @@ class EloverblikService {
                 }
             );
 
+            console.log('✅ Successfully fetched consumption data. Records:', response.data?.result?.length || 0);
+
             logger.info('Successfully fetched consumption data', {
                 recordCount: response.data?.result?.length || 0
             });
-            
+
             return response.data;
         } catch (error) {
             console.error('❌ Error fetching consumption data:', {
@@ -91,7 +93,9 @@ class EloverblikService {
                 responseData: error.response?.data,
                 errorMessage: error.message
             });
-            
+
+            console.error('❌ Error fetching consumption data:', error.message);
+
             logger.error('Error fetching consumption data:', {
                 meteringPointId,
                 dateFrom,
@@ -101,13 +105,13 @@ class EloverblikService {
                 responseData: error.response?.data,
                 error: error.message
             });
-            
+
             if (error.response?.status === 401) {
                 // Token might be expired, clear it to force refresh on next request
                 this.accessToken = null;
                 this.tokenExpiry = null;
             }
-            
+
             throw error;
         }
     }

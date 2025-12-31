@@ -2,6 +2,7 @@
   "name": "electricity-app-frontend",
   "version": "1.0.0",
   "description": "React frontend for Electricity Consumption App",
+  "type": "module",
   "private": true,
   "dependencies": {
     "@emotion/react": "^11.11.1",
@@ -12,18 +13,18 @@
     "apexcharts": "^4.2.0",
     "axios": "^1.5.0",
     "date-fns": "^2.30.0",
-    "dayjs": "^1.11.9",
     "react": "^18.2.0",
     "react-apexcharts": "^1.4.1",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.30.1",
-    "react-scripts": "5.0.1"
+    "@vitejs/plugin-react": "^5.1.2",
+    "vite": "^7.3.0"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "start": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest"
   },
   "eslintConfig": {
     "extends": [
@@ -46,7 +47,9 @@
   "devDependencies": {
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.0",
-    "@testing-library/user-event": "^14.6.1"
+    "@testing-library/react": "^16.3.1",
+    "@testing-library/user-event": "^14.6.1",
+    "jsdom": "^27.4.0",
+    "vitest": "^4.0.16"
   }
 }

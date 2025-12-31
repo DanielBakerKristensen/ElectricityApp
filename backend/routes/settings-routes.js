@@ -1,8 +1,18 @@
 const express = require('express');
 const router = express.Router();
+const { body, param, validationResult } = require('express-validator');
 const RefreshToken = require('../models/RefreshToken');
 const MeteringPoint = require('../models/MeteringPoint');
 const logger = require('../utils/logger');
+
+// Middleware to handle validation errors
+const validate = (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+    next();
+};
 
 // --- Refresh Tokens ---
 
@@ -29,13 +39,13 @@ router.get('/tokens', async (req, res) => {
 });
 
 // POST /api/settings/tokens
-router.post('/tokens', async (req, res) => {
+router.post('/tokens', [
+    body('token').notEmpty().withMessage('Token is required'),
+    body('name').optional().isString().trim(),
+    validate
+], async (req, res) => {
     try {
         const { name, token } = req.body;
-
-        if (!token) {
-            return res.status(400).json({ error: 'Token is required' });
-        }
 
         const newToken = await RefreshToken.create({
             name: name || 'My Token',
@@ -54,7 +64,10 @@ router.post('/tokens', async (req, res) => {
 });
 
 // DELETE /api/settings/tokens/:id
-router.delete('/tokens/:id', async (req, res) => {
+router.delete('/tokens/:id', [
+    param('id').isInt().withMessage('ID must be an integer'),
+    validate
+], async (req, res) => {
     try {
         const { id } = req.params;
         const deleted = await RefreshToken.destroy({
@@ -89,30 +102,20 @@ router.get('/metering-points', async (req, res) => {
 });
 
 // POST /api/settings/metering-points
-router.post('/metering-points', async (req, res) => {
+router.post('/metering-points', [
+    body('meteringPointId')
+        .notEmpty().withMessage('Metering Point ID is required')
+        .isLength({ min: 18, max: 18 }).withMessage('Metering Point ID must be exactly 18 digits')
+        .isNumeric().withMessage('Metering Point ID must contain only digits'),
+    body('name').optional().isString().trim(),
+    validate
+], async (req, res) => {
     try {
-        console.log('📝 POST /metering-points received:', req.body);
         const { name, meteringPointId } = req.body;
-
-
-        // Validate Metering Point ID
-        let cleanMeteringPointId = meteringPointId ? meteringPointId.trim() : '';
-
-        if (!cleanMeteringPointId) {
-            return res.status(400).json({ error: 'Metering Point ID is required' });
-        }
-
-        if (cleanMeteringPointId.length !== 18) {
-            return res.status(400).json({ error: 'Metering Point ID must be exactly 18 digits' });
-        }
-
-        if (!/^\d+$/.test(cleanMeteringPointId)) {
-            return res.status(400).json({ error: 'Metering Point ID must contain only digits' });
-        }
 
         const newMp = await MeteringPoint.create({
             name: name || 'My Meter',
-            meteringPointId: cleanMeteringPointId
+            meteringPointId: meteringPointId.trim()
         });
 
         res.status(201).json(newMp);
@@ -123,7 +126,10 @@ router.post('/metering-points', async (req, res) => {
 });
 
 // DELETE /api/settings/metering-points/:id
-router.delete('/metering-points/:id', async (req, res) => {
+router.delete('/metering-points/:id', [
+    param('id').isInt().withMessage('ID must be an integer'),
+    validate
+], async (req, res) => {
     try {
         const { id } = req.params;
         const deleted = await MeteringPoint.destroy({

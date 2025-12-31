@@ -5,16 +5,15 @@ const { format } = winston;
 const { combine, timestamp, printf, colorize, json } = format;
 
 // Create logs directory if it doesn't exist
-const logDir = path.join(__dirname, '../../logs');
+const logDir = path.join(__dirname, '../logs');
 if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir);
 }
 
 // Define log format
 const logFormat = printf(({ level, message, timestamp, ...meta }) => {
-  return `${timestamp} [${level}]: ${message} ${
-    Object.keys(meta).length ? JSON.stringify(meta, null, 2) : ''
-  }`;
+  return `${timestamp} [${level}]: ${message} ${Object.keys(meta).length ? JSON.stringify(meta, null, 2) : ''
+    }`;
 });
 
 // Create logger instance

@@ -44,14 +44,6 @@ class EloverblikService {
         try {
             const accessToken = await this.getAccessToken();
 
-            console.log('🔍 Fetching consumption data from Eloverblik:', {
-                meteringPointId,
-                dateFrom,
-                dateTo,
-                url: `${ELOVERBLIK_BASE_URL}/meterdata/gettimeseries/${dateFrom}/${dateTo}/Hour`,
-                tokenLength: accessToken?.length
-            });
-
             logger.info('Fetching consumption data from Eloverblik', {
                 meteringPointId,
                 dateFrom,
@@ -76,26 +68,12 @@ class EloverblikService {
                 }
             );
 
-            console.log('✅ Successfully fetched consumption data. Records:', response.data?.result?.length || 0);
-
             logger.info('Successfully fetched consumption data', {
                 recordCount: response.data?.result?.length || 0
             });
 
             return response.data;
         } catch (error) {
-            console.error('❌ Error fetching consumption data:', {
-                meteringPointId,
-                dateFrom,
-                dateTo,
-                status: error.response?.status,
-                statusText: error.response?.statusText,
-                responseData: error.response?.data,
-                errorMessage: error.message
-            });
-
-            console.error('❌ Error fetching consumption data:', error.message);
-
             logger.error('Error fetching consumption data:', {
                 meteringPointId,
                 dateFrom,

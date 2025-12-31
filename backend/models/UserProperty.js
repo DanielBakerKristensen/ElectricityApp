@@ -1,32 +1,36 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
 
-const MeteringPoint = sequelize.define('MeteringPoint', {
+const UserProperty = sequelize.define('UserProperty', {
     id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true
     },
-    name: {
-        type: DataTypes.STRING,
+    user_id: {
+        type: DataTypes.INTEGER,
         allowNull: false,
-        defaultValue: 'My Meter'
+        references: {
+            model: 'users',
+            key: 'id'
+        }
     },
     property_id: {
         type: DataTypes.INTEGER,
-        allowNull: true, // Allow null for migration compatibility
+        allowNull: false,
         references: {
             model: 'properties',
             key: 'id'
         }
     },
-    meteringPointId: {
-        type: DataTypes.STRING,
+    role: {
+        type: DataTypes.ENUM('OWNER', 'GUEST', 'ADMIN'),
+        defaultValue: 'OWNER',
         allowNull: false
     }
 }, {
-    tableName: 'metering_points_config', // Distinct from sync table
+    tableName: 'user_properties',
     timestamps: true
 });
 
-module.exports = MeteringPoint;
+module.exports = UserProperty;

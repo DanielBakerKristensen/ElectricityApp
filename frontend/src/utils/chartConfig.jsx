@@ -113,7 +113,7 @@ export const getCandlestickOptions = (categories, zeroDataDates = [], mode = 'li
           colors: colors.text
         },
         formatter: (value) => {
-          return value.toFixed(1);
+          return (value !== null && value !== undefined) ? Number(value).toFixed(1) : '';
         }
       }
     },
@@ -128,9 +128,9 @@ export const getCandlestickOptions = (categories, zeroDataDates = [], mode = 'li
         return `
           <div style="padding: 10px; background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 4px; color: ${textColor}">
             <div style="margin-bottom: 5px; font-weight: 600;">Date: ${data.x}</div>
-            <div style="color: ${colors.success};">High: ${data.y[1].toFixed(3)} kWh</div>
-            <div style="color: ${colors.danger};">Low: ${data.y[2].toFixed(3)} kWh</div>
-            <div style="color: ${colors.primary};">Average: ${data.y[0].toFixed(3)} kWh</div>
+            <div style="color: ${colors.success};">High: ${Number(data.y[1]).toFixed(3)} kWh</div>
+            <div style="color: ${colors.danger};">Low: ${Number(data.y[2]).toFixed(3)} kWh</div>
+            <div style="color: ${colors.primary};">Average: ${Number(data.y[0]).toFixed(3)} kWh</div>
           </div>
         `;
       }
@@ -229,7 +229,7 @@ export const getHorizontalBarOptions = (categories, dataLength, mode = 'light') 
       theme: mode,
       y: {
         formatter: function (value) {
-          return value.toFixed(3) + ' kWh';
+          return (value !== null && value !== undefined) ? Number(value).toFixed(3) + ' kWh' : '';
         }
       }
     },

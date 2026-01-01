@@ -5,30 +5,36 @@ const ELOVERBLIK_BASE_URL = 'https://api.eloverblik.dk/customerapi/api';
 
 class EloverblikService {
     constructor() {
-        this.refreshToken = process.env.ELOVERBLIK_REFRESH_TOKEN;
-        this.accessToken = null;
-        this.tokenExpiry = null;
+        this.tokens = new Map(); // Cache tokens keyed by refreshToken
     }
 
-    async getAccessToken() {
-        // Return cached token if it's still valid
-        if (this.accessToken && this.tokenExpiry > Date.now()) {
+    async getAccessToken(refreshToken) {
+        if (!refreshToken) {
+            throw new Error('Refresh token is required');
+        }
+
+        const cached = this.tokens.get(refreshToken);
+        if (cached && cached.expiry > Date.now()) {
             logger.debug('Using cached access token');
-            return this.accessToken;
+            return cached.token;
         }
 
         try {
             logger.info('Requesting new access token from Eloverblik');
             const response = await axios.get(`${ELOVERBLIK_BASE_URL}/token`, {
-                headers: { 'Authorization': `Bearer ${this.refreshToken}` }
+                headers: { 'Authorization': `Bearer ${refreshToken}` }
             });
 
-            this.accessToken = response.data.result;
-            // Set token expiry to 1 hour from now (token typically expires in 1 hour)
-            this.tokenExpiry = Date.now() + (60 * 60 * 1000) - 30000; // 30 seconds buffer
+            const accessToken = response.data.result;
+            const expiry = Date.now() + (60 * 60 * 1000) - 30000;
+
+            this.tokens.set(refreshToken, {
+                token: accessToken,
+                expiry: expiry
+            });
 
             logger.info('Successfully obtained access token');
-            return this.accessToken;
+            return accessToken;
         } catch (error) {
             logger.error('Error getting access token:', {
                 status: error.response?.status,
@@ -40,9 +46,9 @@ class EloverblikService {
         }
     }
 
-    async getConsumptionData(meteringPointId, dateFrom, dateTo) {
+    async getConsumptionData(refreshToken, meteringPointId, dateFrom, dateTo) {
         try {
-            const accessToken = await this.getAccessToken();
+            const accessToken = await this.getAccessToken(refreshToken);
 
             logger.info('Fetching consumption data from Eloverblik', {
                 meteringPointId,
@@ -64,7 +70,7 @@ class EloverblikService {
                         'Content-Type': 'application/json',
                         'Accept': 'application/json'
                     },
-                    timeout: 10000 // 10 second timeout
+                    timeout: 15000 // Increased timeout for larger requests
                 }
             );
 
@@ -86,8 +92,7 @@ class EloverblikService {
 
             if (error.response?.status === 401) {
                 // Token might be expired, clear it to force refresh on next request
-                this.accessToken = null;
-                this.tokenExpiry = null;
+                this.tokens.delete(refreshToken);
             }
 
             throw error;

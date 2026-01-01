@@ -30,6 +30,7 @@ const swaggerUi = require('swagger-ui-express');
 const logger = require('./utils/logger');
 const { sequelize, testConnection } = require('./config/database');
 const SyncService = require('./services/sync-service');
+const WeatherSyncService = require('./services/weather-sync-service');
 const SyncScheduler = require('./services/sync-scheduler');
 const eloverblikService = require('./services/eloverblik-service');
 
@@ -100,14 +101,15 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 }));
 
 // API Routes
-// API Routes
 app.use('/api/settings', require('./routes/settings-routes'));
 app.use('/api/sync', require('./routes/sync-routes'));
+app.use('/api/weather', require('./routes/weather-routes'));
 app.use('/api', require('./routes/electricity-routes'));
 
 // Register models
 require('./models/RefreshToken');
 require('./models/MeteringPoint');
+require('./models/WeatherData');
 
 // Sync database in development
 if (process.env.NODE_ENV !== 'production') {
@@ -255,7 +257,9 @@ const server = app.listen(PORT, async () => {
     if (process.env.SYNC_ENABLED !== 'false') {
       try {
         const syncService = new SyncService(eloverblikService, sequelize, logger);
-        syncScheduler = new SyncScheduler(syncService, logger);
+        const weatherSyncService = new WeatherSyncService(sequelize, logger);
+        syncScheduler = new SyncScheduler(syncService, weatherSyncService, logger);
+        
         // Delay start to allow server to fully initialize
         setTimeout(() => {
           syncScheduler.start();
@@ -264,7 +268,7 @@ const server = app.listen(PORT, async () => {
         // Store syncScheduler in app.locals for access by routes
         app.locals.syncScheduler = syncScheduler;
 
-        logger.info('Sync scheduler initialized and started');
+        logger.info('Sync scheduler initialized and started (energy + weather)');
       } catch (schedulerError) {
         logger.error('Failed to initialize sync scheduler:', schedulerError);
         // Don't exit - allow server to continue running even if scheduler fails

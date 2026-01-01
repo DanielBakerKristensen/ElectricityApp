@@ -1,183 +1,127 @@
 const cron = require('node-cron');
 const logger = require('../utils/logger');
+const { Property } = require('../models');
 
 /**
- * SyncScheduler - Manages the cron job that triggers daily synchronization
- * of electricity consumption data from Eloverblik API
+ * SyncScheduler - Manages independent cron jobs for different sync types
  */
 class SyncScheduler {
-    /**
-     * @param {Object} syncService - SyncService instance for performing data synchronization
-     * @param {Object} loggerInstance - Winston logger instance (optional)
-     */
-    constructor(syncService, loggerInstance) {
+    constructor(syncService, weatherSyncService, loggerInstance) {
         this.syncService = syncService;
+        this.weatherSyncService = weatherSyncService;
         this.logger = loggerInstance || logger;
-        this.cronJob = null;
 
-        // Read configuration from environment variables
+        this.cronJobs = { energy: null, weather: null };
+
         this.enabled = process.env.SYNC_ENABLED !== 'false';
-        this.schedule = process.env.SYNC_SCHEDULE || '0 14 * * *'; // Default: daily at 2 PM
+        this.energySchedule = process.env.SYNC_SCHEDULE || '0 14 * * *';
         this.daysBack = parseInt(process.env.SYNC_DAYS_BACK || '1');
 
-        // Validate cron expression format
-        if (!cron.validate(this.schedule)) {
-            this.logger.error('Invalid cron expression format', {
-                schedule: this.schedule,
-                error: 'Cron expression validation failed'
-            });
-            this.enabled = false; // Disable scheduler if cron expression is invalid
-        }
+        this.weatherEnabled = process.env.WEATHER_SYNC_ENABLED !== 'false';
+        this.weatherSchedule = process.env.WEATHER_SYNC_SCHEDULE || '5 14 * * *';
+        this.weatherDaysBack = parseInt(process.env.WEATHER_SYNC_DAYS_BACK || '1');
 
-        this.logger.info('SyncScheduler initialized', {
-            enabled: this.enabled,
-            schedule: this.schedule,
-            daysBack: this.daysBack
-        });
+        this.validateCronExpressions();
     }
 
-    /**
-     * Initialize and start the cron job scheduler
-     * Registers the scheduled job to run at the configured time
-     */
+    validateCronExpressions() {
+        if (!cron.validate(this.energySchedule)) {
+            this.logger.error('Invalid energy sync cron expression', { schedule: this.energySchedule });
+            this.enabled = false;
+        }
+        if (this.weatherEnabled && !cron.validate(this.weatherSchedule)) {
+            this.logger.error('Invalid weather sync cron expression', { schedule: this.weatherSchedule });
+            this.weatherEnabled = false;
+        }
+    }
+
     start() {
-        if (!this.enabled) {
-            this.logger.info('Sync scheduler is disabled (SYNC_ENABLED=false or invalid cron expression)');
-            return;
-        }
-
-        if (this.cronJob) {
-            this.logger.warn('Sync scheduler is already running');
-            return;
-        }
-
-        try {
-            // Create and start the cron job
-            this.cronJob = cron.schedule(this.schedule, async () => {
-                await this.executeScheduledSync();
-            }, {
-                scheduled: true,
-                timezone: 'Europe/Copenhagen' // Danish timezone
-            });
-
-            this.logger.info('Sync scheduler started successfully', {
-                schedule: this.schedule,
-                daysBack: this.daysBack,
-                timezone: 'Europe/Copenhagen'
-            });
-
-        } catch (error) {
-            this.logger.error('Failed to start sync scheduler', {
-                error: error.message,
-                schedule: this.schedule
-            });
-            throw error;
-        }
+        if (!this.enabled) return;
+        this.startEnergySync();
+        if (this.weatherEnabled && this.weatherSyncService) this.startWeatherSync();
     }
 
-    /**
-     * Stop the scheduler gracefully
-     * Stops the cron job and cleans up resources
-     */
-    stop() {
-        if (!this.cronJob) {
-            this.logger.info('Sync scheduler is not running');
-            return;
-        }
-
-        try {
-            this.cronJob.stop();
-            this.cronJob = null;
-
-            this.logger.info('Sync scheduler stopped successfully');
-        } catch (error) {
-            this.logger.error('Error stopping sync scheduler', {
-                error: error.message
-            });
-            throw error;
-        }
-    }
-
-    /**
-     * Manually trigger a sync execution (for testing/admin purposes)
-     * @returns {Promise<Object>} Sync result with success status, records synced, and log ID
-     */
-    async triggerManualSync(options = {}) {
-        const daysBack = options.daysBack || this.daysBack;
-
-        this.logger.info('Manual sync triggered', {
-            daysBack,
-            dateFrom: options.dateFrom,
-            dateTo: options.dateTo
+    startEnergySync() {
+        if (this.cronJobs.energy) return;
+        this.cronJobs.energy = cron.schedule(this.energySchedule, () => this.executeEnergySync(), {
+            scheduled: true, timezone: 'Europe/Copenhagen'
         });
-
-        try {
-            const result = await this.syncService.syncConsumptionData({
-                daysBack,
-                dateFrom: options.dateFrom,
-                dateTo: options.dateTo
-            });
-
-            this.logger.info('Manual sync completed', {
-                success: result.success,
-                recordsSynced: result.recordsSynced,
-                logId: result.logId
-            });
-
-            return result;
-
-        } catch (error) {
-            this.logger.error('Manual sync failed', {
-                error: error.message,
-                stack: error.stack
-            });
-
-            return {
-                success: false,
-                error: error.message,
-                recordsSynced: 0
-            };
-        }
     }
 
-    /**
-     * Execute the scheduled sync job
-     * Called by the cron scheduler at the configured time
-     * Handles errors without crashing the scheduler
-     * @private
-     */
-    async executeScheduledSync() {
-        this.logger.info('Scheduled sync execution started', {
-            schedule: this.schedule,
-            daysBack: this.daysBack,
-            timestamp: new Date().toISOString()
+    startWeatherSync() {
+        if (this.cronJobs.weather) return;
+        this.cronJobs.weather = cron.schedule(this.weatherSchedule, () => this.executeWeatherSync(), {
+            scheduled: true, timezone: 'Europe/Copenhagen'
         });
+    }
 
+    async executeEnergySync() {
+        this.logger.info('Scheduled energy sync started');
         try {
-            const result = await this.syncService.syncConsumptionData({
-                daysBack: this.daysBack
-            });
-
-            if (result.success) {
-                this.logger.info('Scheduled sync completed successfully', {
-                    recordsSynced: result.recordsSynced,
-                    logId: result.logId
-                });
-            } else {
-                this.logger.error('Scheduled sync failed', {
-                    error: result.error,
-                    logId: result.logId
+            const properties = await Property.findAll();
+            for (const property of properties) {
+                await this.syncService.syncPropertyConsumption({
+                    propertyId: property.id,
+                    daysBack: this.daysBack
                 });
             }
-
         } catch (error) {
-            // Catch any unexpected errors to prevent scheduler from crashing
-            this.logger.error('Unexpected error during scheduled sync execution', {
-                error: error.message,
-                stack: error.stack,
-                daysBack: this.daysBack
-            });
+            this.logger.error('Error during scheduled energy sync', { error: error.message });
         }
+    }
+
+    async executeWeatherSync() {
+        this.logger.info('Scheduled weather sync started');
+        try {
+            const properties = await Property.findAll({ where: { weather_sync_enabled: true } });
+            for (const property of properties) {
+                await this.weatherSyncService.syncWeatherData({
+                    propertyId: property.id,
+                    daysBack: this.weatherDaysBack
+                });
+            }
+        } catch (error) {
+            this.logger.error('Error during scheduled weather sync', { error: error.message });
+        }
+    }
+
+    async triggerManualSync(options = {}) {
+        const syncType = options.type || 'both';
+        const results = { energy: null, weather: null, success: true, totalRecords: 0 };
+
+        try {
+            if (syncType === 'energy' || syncType === 'both') {
+                results.energy = await this.syncService.syncPropertyConsumption({
+                    propertyId: options.propertyId,
+                    daysBack: options.daysBack || this.daysBack,
+                    dateFrom: options.dateFrom,
+                    dateTo: options.dateTo
+                });
+                if (results.energy.success) results.totalRecords += (results.energy.totalRecordsSynced || 0);
+            }
+
+            if (syncType === 'weather' || syncType === 'both') {
+                results.weather = await this.weatherSyncService.syncWeatherData({
+                    propertyId: options.propertyId,
+                    daysBack: options.weatherDaysBack || this.weatherDaysBack,
+                    dateFrom: options.dateFrom,
+                    dateTo: options.dateTo
+                });
+                if (results.weather.success) results.totalRecords += (results.weather.recordsSynced || 0);
+            }
+
+            results.success = (results.energy ? results.energy.success : true) &&
+                (results.weather ? results.weather.success : true);
+            return results;
+        } catch (error) {
+            this.logger.error('Manual sync failed', { error: error.message });
+            return { success: false, error: error.message };
+        }
+    }
+
+    stop() {
+        if (this.cronJobs.energy) this.cronJobs.energy.stop();
+        if (this.cronJobs.weather) this.cronJobs.weather.stop();
     }
 }
 

@@ -2,24 +2,10 @@ const express = require('express');
 const axios = require('axios');
 const { QueryTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
+const { Property, MeteringPoint } = require('../models');
 const router = express.Router();
 
 const ELOVERBLIK_BASE_URL = 'https://api.eloverblik.dk/customerapi/api';
-const REFRESH_TOKEN = process.env.ELOVERBLIK_REFRESH_TOKEN;
-const METERING_POINT_ID = process.env.ELOVERBLIK_METERING_POINTS;
-
-// Helper function to get a new access token
-async function getAccessToken() {
-    try {
-        const response = await axios.get(`${ELOVERBLIK_BASE_URL}/token`, {
-            headers: { 'Authorization': `Bearer ${REFRESH_TOKEN}` }
-        });
-        return response.data.result;
-    } catch (error) {
-        console.error('Error fetching access token:', error.response ? error.response.data : error.message);
-        throw new Error('Failed to get access token from Eloverblik');
-    }
-}
 
 // Database query function to fetch consumption data
 async function queryConsumptionData(meteringPointId, dateFrom, dateTo, aggregationLevel) {
@@ -77,9 +63,6 @@ function formatForFrontend(dbResults) {
         });
     });
 
-    console.log('🔄 Grouped into', Object.keys(periodsByDay).length, 'days');
-    console.log('🔄 First day points:', periodsByDay[Object.keys(periodsByDay)[0]]?.Point?.length);
-
     return {
         result: [{
             success: true,
@@ -109,7 +92,6 @@ function formatForFrontend(dbResults) {
  *         schema:
  *           type: string
  *           format: date
- *           example: "2024-01-01"
  *         description: Start date (YYYY-MM-DD)
  *       - in: query
  *         name: dateTo
@@ -117,77 +99,71 @@ function formatForFrontend(dbResults) {
  *         schema:
  *           type: string
  *           format: date
- *           example: "2024-01-31"
  *         description: End date (YYYY-MM-DD)
+ *       - in: query
+ *         name: propertyId
+ *         schema:
+ *           type: integer
+ *         description: ID of the property to use (for refresh token)
+ *       - in: query
+ *         name: meteringPointId
+ *         schema:
+ *           type: string
+ *         description: Database ID of the metering point
  *     responses:
  *       200:
  *         description: Successfully retrieved consumption data
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *       400:
- *         description: Missing required query parameters
- *       500:
- *         description: Failed to fetch data from Eloverblik API
  */
 router.get('/test-data', async (req, res) => {
-    const { dateFrom, dateTo, tokenId, meteringPointId: mpId } = req.query;
+    const { dateFrom, dateTo, propertyId, meteringPointId: dbMpId } = req.query;
 
     if (!dateFrom || !dateTo) {
         return res.status(400).json({ error: 'Missing dateFrom or dateTo query parameters' });
     }
 
     try {
-        let refreshToken = REFRESH_TOKEN;
-        let meteringPointId = METERING_POINT_ID;
+        let refreshToken;
+        let meteringPointId;
 
-        // If tokenId is provided, fetch from database
-        if (tokenId) {
-            const RefreshToken = require('../models/RefreshToken');
-            const tokenDoc = await RefreshToken.findByPk(tokenId);
-            if (tokenDoc) {
-                refreshToken = tokenDoc.token;
-                console.log(`🔌 Using token: ${tokenDoc.name}`);
-            } else {
-                return res.status(404).json({ error: 'Refresh Token not found' });
+        // 1. Resolve Metering Point and Property
+        if (dbMpId) {
+            const mpDoc = await MeteringPoint.findByPk(dbMpId, { include: ['property'] });
+            if (!mpDoc) return res.status(404).json({ error: 'Metering Point not found' });
+
+            meteringPointId = mpDoc.meteringPointId.trim();
+            refreshToken = mpDoc.property?.refresh_token;
+            console.log(`🔌 Using metering point: ${mpDoc.name} (${meteringPointId})`);
+        } else if (propertyId) {
+            const prop = await Property.findByPk(propertyId, { include: ['meteringPoints'] });
+            if (!prop) return res.status(404).json({ error: 'Property not found' });
+
+            refreshToken = prop.refresh_token;
+            if (prop.meteringPoints && prop.meteringPoints.length > 0) {
+                meteringPointId = prop.meteringPoints[0].meteringPointId.trim();
             }
+        } else {
+            // Default to first property/meter if none specified
+            const defaultProp = await Property.findOne({ include: ['meteringPoints'] });
+            if (!defaultProp || !defaultProp.meteringPoints?.length) {
+                return res.status(400).json({ error: 'No properties/metering points configured in database' });
+            }
+            refreshToken = defaultProp.refresh_token;
+            meteringPointId = defaultProp.meteringPoints[0].meteringPointId.trim();
         }
 
-        // If meteringPointId (mpId) is provided, fetch from database
-        if (mpId) {
-            const MeteringPoint = require('../models/MeteringPoint');
-            const mpDoc = await MeteringPoint.findByPk(mpId);
-            if (mpDoc) {
-                meteringPointId = mpDoc.meteringPointId.trim();
-                console.log(`🔌 Using metering point: ${mpDoc.name} (${meteringPointId})`);
-            } else {
-                return res.status(404).json({ error: 'Metering Point not found' });
-            }
-        }
+        if (!refreshToken) return res.status(400).json({ error: 'No refresh token available for selected property' });
+        if (!meteringPointId) return res.status(400).json({ error: 'No metering point ID available' });
 
-        // Helper function to get access token with specific refresh token
-        const getDynamicAccessToken = async (token) => {
-            try {
-                const response = await axios.get(`${ELOVERBLIK_BASE_URL}/token`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                return response.data.result;
-            } catch (error) {
-                console.error('Error fetching access token:', error.response ? error.response.data : error.message);
-                throw new Error('Failed to get access token from Eloverblik');
-            }
-        };
+        // 2. Get Access Token
+        const tokenRes = await axios.get(`${ELOVERBLIK_BASE_URL}/token`, {
+            headers: { 'Authorization': `Bearer ${refreshToken}` }
+        });
+        const accessToken = tokenRes.data.result;
 
-        const accessToken = await getDynamicAccessToken(refreshToken);
-
+        // 3. Get Time Series
         const response = await axios.post(
             `${ELOVERBLIK_BASE_URL}/meterdata/gettimeseries/${dateFrom}/${dateTo}/Hour`,
-            {
-                meteringPoints: {
-                    meteringPoint: [meteringPointId]
-                }
-            },
+            { meteringPoints: { meteringPoint: [meteringPointId] } },
             {
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
@@ -198,7 +174,7 @@ router.get('/test-data', async (req, res) => {
 
         res.json(response.data);
     } catch (error) {
-        console.error('Error fetching data from Eloverblik:', error.response ? error.response.data : error.message);
+        console.error('Error fetching from Eloverblik:', error.response ? error.response.data : error.message);
         res.status(500).json({ error: 'Failed to fetch data from Eloverblik API' });
     }
 });
@@ -208,7 +184,7 @@ router.get('/test-data', async (req, res) => {
  * /api/database-demo:
  *   get:
  *     summary: Fetch electricity consumption data from local database
- *     description: Retrieves hourly electricity consumption data from the local PostgreSQL database for a specified date range
+ *     description: Retrieves hourly electricity consumption data from the local PostgreSQL database
  *     tags:
  *       - Electricity Data
  *     parameters:
@@ -218,70 +194,47 @@ router.get('/test-data', async (req, res) => {
  *         schema:
  *           type: string
  *           format: date
- *           example: "2024-01-01"
- *         description: Start date (YYYY-MM-DD)
  *       - in: query
  *         name: dateTo
  *         required: true
  *         schema:
  *           type: string
  *           format: date
- *           example: "2024-01-31"
- *         description: End date (YYYY-MM-DD)
+ *       - in: query
+ *         name: meteringPointId
+ *         schema:
+ *           type: string
+ *         description: Database ID of the metering point
  *     responses:
  *       200:
- *         description: Successfully retrieved consumption data from database
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *       400:
- *         description: Missing required query parameters
- *       500:
- *         description: Failed to fetch data from database
+ *         description: Successfully retrieved consumption data
  */
-// Database demo endpoint
 router.get('/database-demo', async (req, res) => {
-    const { dateFrom, dateTo } = req.query;
+    const { dateFrom, dateTo, meteringPointId: dbMpId } = req.query;
 
-    // Validate parameters
     if (!dateFrom || !dateTo) {
-        return res.status(400).json({
-            error: 'Missing dateFrom or dateTo query parameters'
-        });
+        return res.status(400).json({ error: 'Missing dateFrom or dateTo query parameters' });
     }
 
     try {
-        console.log('📊 Database query:', {
-            meteringPointId: METERING_POINT_ID,
-            dateFrom,
-            dateTo
-        });
+        let actualMpId;
 
-        // Query database
-        const results = await queryConsumptionData(
-            METERING_POINT_ID,
-            dateFrom,
-            dateTo,
-            'Hour'
-        );
+        if (dbMpId) {
+            const mp = await MeteringPoint.findByPk(dbMpId);
+            if (!mp) return res.status(404).json({ error: 'Metering point not found' });
+            actualMpId = mp.meteringPointId.trim();
+        } else {
+            // Default to first metering point
+            const defaultMp = await MeteringPoint.findOne();
+            if (!defaultMp) return res.status(400).json({ error: 'No metering points configured in database' });
+            actualMpId = defaultMp.meteringPointId.trim();
+        }
 
-        console.log('📊 Query results:', {
-            recordCount: results.length,
-            firstRecord: results[0],
-            lastRecord: results[results.length - 1]
-        });
-
-        // Format for frontend
-        const formattedData = formatForFrontend(results);
-
-        res.json(formattedData);
+        const results = await queryConsumptionData(actualMpId, dateFrom, dateTo, 'Hour');
+        res.json(formatForFrontend(results));
     } catch (error) {
         console.error('Database query error:', error);
-        res.status(500).json({
-            error: 'Failed to fetch data from database',
-            details: error.message
-        });
+        res.status(500).json({ error: 'Failed to fetch data from database', details: error.message });
     }
 });
 

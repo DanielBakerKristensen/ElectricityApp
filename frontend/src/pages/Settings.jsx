@@ -20,48 +20,58 @@ import {
     Divider,
     Alert,
     CircularProgress,
-    Grid
+    Grid,
+    Paper,
+    Collapse,
+    Tooltip
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import KeyIcon from '@mui/icons-material/Key';
 import ElectricMeterIcon from '@mui/icons-material/ElectricMeter';
+import HomeIcon from '@mui/icons-material/Home';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import EditIcon from '@mui/icons-material/Edit';
 
 const Settings = () => {
-    const [tokens, setTokens] = useState([]);
-    const [meteringPoints, setMeteringPoints] = useState([]);
+    const [properties, setProperties] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [expandedProperty, setExpandedProperty] = useState(null);
 
     // Dialog states
-    const [openTokenDialog, setOpenTokenDialog] = useState(false);
+    const [openPropertyDialog, setOpenPropertyDialog] = useState(false);
     const [openMpDialog, setOpenMpDialog] = useState(false);
+    const [editingProperty, setEditingProperty] = useState(null);
+    const [activePropertyId, setActivePropertyId] = useState(null);
 
     // Form state
-    const [newTokenName, setNewTokenName] = useState('');
-    const [newTokenValue, setNewTokenValue] = useState('');
+    const [propName, setPropName] = useState('');
+    const [propToken, setPropToken] = useState('');
+    const [propLat, setPropLat] = useState('');
+    const [propLng, setPropLng] = useState('');
+    const [propWeatherEnabled, setPropWeatherEnabled] = useState(true);
+
     const [newMpName, setNewMpName] = useState('');
     const [newMpValue, setNewMpValue] = useState('');
 
     useEffect(() => {
-        fetchData();
+        fetchProperties();
     }, []);
 
-    const fetchData = async () => {
+    const fetchProperties = async () => {
         setLoading(true);
         try {
-            const [tokensRes, mpsRes] = await Promise.all([
-                fetch('/api/settings/tokens'),
-                fetch('/api/settings/metering-points')
-            ]);
+            const response = await fetch('/api/settings/properties');
+            if (!response.ok) throw new Error('Failed to fetch properties');
+            const data = await response.json();
+            setProperties(data);
 
-            if (!tokensRes.ok || !mpsRes.ok) throw new Error('Failed to fetch settings');
-
-            const tokensData = await tokensRes.json();
-            const mpsData = await mpsRes.json();
-
-            setTokens(tokensData);
-            setMeteringPoints(mpsData);
+            // Auto-expand first property if none expanded
+            if (data.length > 0 && expandedProperty === null) {
+                setExpandedProperty(data[0].id);
+            }
         } catch (err) {
             setError(err.message);
         } finally {
@@ -69,46 +79,74 @@ const Settings = () => {
         }
     };
 
-    // --- Token Handlers ---
+    // --- Property Handlers ---
 
-    const handleAddToken = async () => {
+    const handleSaveProperty = async () => {
         try {
-            const response = await fetch('/api/settings/tokens', {
-                method: 'POST',
+            const method = editingProperty ? 'PUT' : 'POST';
+            const url = editingProperty
+                ? `/api/settings/properties/${editingProperty.id}`
+                : '/api/settings/properties';
+
+            const response = await fetch(url, {
+                method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    name: newTokenName,
-                    token: newTokenValue
+                    name: propName,
+                    refresh_token: propToken,
+                    latitude: propLat || null,
+                    longitude: propLng || null,
+                    weather_sync_enabled: propWeatherEnabled
                 })
             });
 
-            if (!response.ok) throw new Error('Failed to create token');
+            if (!response.ok) throw new Error('Failed to save property');
 
-            setOpenTokenDialog(false);
-            setNewTokenName('');
-            setNewTokenValue('');
-            fetchData();
+            setOpenPropertyDialog(false);
+            resetPropForm();
+            fetchProperties();
         } catch (err) {
             setError(err.message);
         }
     };
 
-    const handleDeleteToken = async (id) => {
-        if (!window.confirm('Delete this token?')) return;
+    const handleDeleteProperty = async (id, e) => {
+        e.stopPropagation();
+        if (!window.confirm('Delete this property and all its metering points?')) return;
         try {
-            const response = await fetch(`/api/settings/tokens/${id}`, { method: 'DELETE' });
-            if (!response.ok) throw new Error('Failed to delete token');
-            fetchData();
+            const response = await fetch(`/api/settings/properties/${id}`, { method: 'DELETE' });
+            if (!response.ok) throw new Error('Failed to delete property');
+            fetchProperties();
         } catch (err) {
             setError(err.message);
         }
+    };
+
+    const openEditProperty = (prop, e) => {
+        e.stopPropagation();
+        setEditingProperty(prop);
+        setPropName(prop.name);
+        setPropToken(prop.refresh_token || '');
+        setPropLat(prop.latitude || '');
+        setPropLng(prop.longitude || '');
+        setPropWeatherEnabled(prop.weather_sync_enabled);
+        setOpenPropertyDialog(true);
+    };
+
+    const resetPropForm = () => {
+        setEditingProperty(null);
+        setPropName('');
+        setPropToken('');
+        setPropLat('');
+        setPropLng('');
+        setPropWeatherEnabled(true);
     };
 
     // --- Metering Point Handlers ---
 
     const handleAddMp = async () => {
         try {
-            const response = await fetch('/api/settings/metering-points', {
+            const response = await fetch(`/api/settings/properties/${activePropertyId}/metering-points`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -119,143 +157,179 @@ const Settings = () => {
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.error || `Failed to create metering point (${response.status})`);
+                throw new Error(errorData.error || 'Failed to add metering point');
             }
 
             setOpenMpDialog(false);
             setNewMpName('');
             setNewMpValue('');
-            fetchData();
+            fetchProperties();
         } catch (err) {
             setError(err.message);
         }
     };
 
-    const handleDeleteMp = async (id) => {
+    const handleDeleteMp = async (mpId) => {
         if (!window.confirm('Delete this metering point?')) return;
         try {
-            const response = await fetch(`/api/settings/metering-points/${id}`, { method: 'DELETE' });
+            const response = await fetch(`/api/settings/metering-points/${mpId}`, { method: 'DELETE' });
             if (!response.ok) throw new Error('Failed to delete metering point');
-            fetchData();
+            fetchProperties();
         } catch (err) {
             setError(err.message);
         }
     };
 
     return (
-        <Box>
-            <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold' }}>
-                Settings
-            </Typography>
+        <Box sx={{ maxWidth: 1000, mx: 'auto', p: 2 }}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                    Settings
+                </Typography>
+                <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={() => { resetPropForm(); setOpenPropertyDialog(true); }}
+                >
+                    Add Property
+                </Button>
+            </Box>
 
             {error && (
-                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+                <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
                     {error}
                 </Alert>
             )}
 
-            <Grid container spacing={3}>
-                {/* Refresh Tokens Section */}
-                <Grid item xs={12} md={6}>
-                    <Card sx={{ height: '100%' }}>
-                        <CardContent>
-                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                                <Box display="flex" alignItems="center">
-                                    <KeyIcon sx={{ mr: 1, color: 'primary.main' }} />
-                                    <Typography variant="h6">Refresh Tokens</Typography>
-                                </Box>
-                                <Button
-                                    variant="outlined"
-                                    size="small"
-                                    startIcon={<AddIcon />}
-                                    onClick={() => setOpenTokenDialog(true)}
+            {loading && properties.length === 0 ? (
+                <Box display="flex" justifyContent="center" p={4}>
+                    <CircularProgress />
+                </Box>
+            ) : (
+                <Grid container spacing={3}>
+                    {properties.map((prop) => (
+                        <Grid item xs={12} key={prop.id}>
+                            <Card variant="outlined" sx={{ borderRadius: 2 }}>
+                                <Box
+                                    sx={{
+                                        p: 2,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        cursor: 'pointer',
+                                        bgcolor: expandedProperty === prop.id ? 'action.hover' : 'inherit',
+                                        '&:hover': { bgcolor: 'action.hover' }
+                                    }}
+                                    onClick={() => setExpandedProperty(expandedProperty === prop.id ? null : prop.id)}
                                 >
-                                    Add
-                                </Button>
-                            </Box>
-
-                            {loading ? <CircularProgress size={24} /> : (
-                                <List dense>
-                                    {tokens.map((token, index) => (
-                                        <React.Fragment key={token.id}>
-                                            {index > 0 && <Divider />}
-                                            <ListItem>
-                                                <ListItemText
-                                                    primary={token.name}
-                                                    secondary={token.token} // Masked from backend
-                                                />
-                                                <ListItemSecondaryAction>
-                                                    <IconButton edge="end" onClick={() => handleDeleteToken(token.id)}>
-                                                        <DeleteIcon />
-                                                    </IconButton>
-                                                </ListItemSecondaryAction>
-                                            </ListItem>
-                                        </React.Fragment>
-                                    ))}
-                                    {tokens.length === 0 && (
-                                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                                            No tokens saved.
+                                    <HomeIcon sx={{ mr: 2, color: 'primary.main' }} />
+                                    <Box sx={{ flexGrow: 1 }}>
+                                        <Typography variant="h6" sx={{ fontWeight: 'medium' }}>
+                                            {prop.name}
                                         </Typography>
-                                    )}
-                                </List>
-                            )}
-                        </CardContent>
-                    </Card>
-                </Grid>
-
-                {/* Metering Points Section */}
-                <Grid item xs={12} md={6}>
-                    <Card sx={{ height: '100%' }}>
-                        <CardContent>
-                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                                <Box display="flex" alignItems="center">
-                                    <ElectricMeterIcon sx={{ mr: 1, color: 'secondary.main' }} />
-                                    <Typography variant="h6">Metering Points</Typography>
+                                        <Typography variant="body2" color="text.secondary">
+                                            {prop.meteringPoints?.length || 0} Metering Points • {prop.weather_sync_enabled ? 'Weather Sync On' : 'Weather Sync Off'}
+                                        </Typography>
+                                    </Box>
+                                    <Box>
+                                        <Tooltip title="Edit Property">
+                                            <IconButton onClick={(e) => openEditProperty(prop, e)}>
+                                                <EditIcon fontSize="small" />
+                                            </IconButton>
+                                        </Tooltip>
+                                        <Tooltip title="Delete Property">
+                                            <IconButton onClick={(e) => handleDeleteProperty(prop.id, e)} color="error">
+                                                <DeleteIcon fontSize="small" />
+                                            </IconButton>
+                                        </Tooltip>
+                                        <IconButton size="small">
+                                            {expandedProperty === prop.id ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                                        </IconButton>
+                                    </Box>
                                 </Box>
-                                <Button
-                                    variant="outlined"
-                                    size="small"
-                                    startIcon={<AddIcon />}
-                                    onClick={() => setOpenMpDialog(true)}
-                                >
-                                    Add
-                                </Button>
-                            </Box>
 
-                            {loading ? <CircularProgress size={24} /> : (
-                                <List dense>
-                                    {meteringPoints.map((mp, index) => (
-                                        <React.Fragment key={mp.id}>
-                                            {index > 0 && <Divider />}
-                                            <ListItem>
-                                                <ListItemText
-                                                    primary={mp.name}
-                                                    secondary={mp.meteringPointId}
-                                                />
-                                                <ListItemSecondaryAction>
-                                                    <IconButton edge="end" onClick={() => handleDeleteMp(mp.id)}>
-                                                        <DeleteIcon />
-                                                    </IconButton>
-                                                </ListItemSecondaryAction>
-                                            </ListItem>
-                                        </React.Fragment>
-                                    ))}
-                                    {meteringPoints.length === 0 && (
-                                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                                            No metering points saved.
-                                        </Typography>
-                                    )}
-                                </List>
-                            )}
-                        </CardContent>
-                    </Card>
+                                <Collapse in={expandedProperty === prop.id}>
+                                    <Divider />
+                                    <CardContent sx={{ bgcolor: 'background.default' }}>
+                                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                                            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+                                                <ElectricMeterIcon sx={{ mr: 1, fontSize: '1.2rem' }} />
+                                                Metering Points
+                                            </Typography>
+                                            <Button
+                                                size="small"
+                                                startIcon={<AddIcon />}
+                                                onClick={() => { setActivePropertyId(prop.id); setOpenMpDialog(true); }}
+                                            >
+                                                Add Meter
+                                            </Button>
+                                        </Box>
+
+                                        <Paper variant="outlined">
+                                            <List dense>
+                                                {prop.meteringPoints?.map((mp, idx) => (
+                                                    <React.Fragment key={mp.id}>
+                                                        {idx > 0 && <Divider />}
+                                                        <ListItem>
+                                                            <ListItemText
+                                                                primary={mp.name}
+                                                                secondary={mp.meteringPointId}
+                                                            />
+                                                            <ListItemSecondaryAction>
+                                                                <IconButton edge="end" size="small" onClick={() => handleDeleteMp(mp.id)}>
+                                                                    <DeleteIcon fontSize="small" />
+                                                                </IconButton>
+                                                            </ListItemSecondaryAction>
+                                                        </ListItem>
+                                                    </React.Fragment>
+                                                ))}
+                                                {(!prop.meteringPoints || prop.meteringPoints.length === 0) && (
+                                                    <ListItem>
+                                                        <ListItemText
+                                                            secondary="No metering points added yet."
+                                                            sx={{ fontStyle: 'italic' }}
+                                                        />
+                                                    </ListItem>
+                                                )}
+                                            </List>
+                                        </Paper>
+
+                                        <Box sx={{ mt: 3 }}>
+                                            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                                                Configuration Details
+                                            </Typography>
+                                            <Grid container spacing={2}>
+                                                <Grid item xs={12} sm={6}>
+                                                    <Typography variant="caption" display="block">REFRESH TOKEN</Typography>
+                                                    <Typography variant="body2" sx={{ fontFamily: 'monospace', bgcolor: 'action.disabledBackground', p: 0.5, borderRadius: 1 }}>
+                                                        {prop.refresh_token || 'None'}
+                                                    </Typography>
+                                                </Grid>
+                                                <Grid item xs={12} sm={3}>
+                                                    <Typography variant="caption" display="block">COORDINATES</Typography>
+                                                    <Typography variant="body2">
+                                                        {prop.latitude && prop.longitude ? `${prop.latitude}, ${prop.longitude}` : 'Not set'}
+                                                    </Typography>
+                                                </Grid>
+                                                <Grid item xs={12} sm={3}>
+                                                    <Typography variant="caption" display="block">WEATHER SYNC</Typography>
+                                                    <Typography variant="body2" color={prop.weather_sync_enabled ? 'success.main' : 'text.disabled'}>
+                                                        {prop.weather_sync_enabled ? 'Enabled' : 'Disabled'}
+                                                    </Typography>
+                                                </Grid>
+                                            </Grid>
+                                        </Box>
+                                    </CardContent>
+                                </Collapse>
+                            </Card>
+                        </Grid>
+                    ))}
                 </Grid>
-            </Grid>
+            )}
 
-            <Card sx={{ mt: 3 }}>
+            <Card sx={{ mt: 4, borderRadius: 2 }}>
                 <CardContent>
-                    <Typography variant="h6" gutterBottom>
-                        Appearance
+                    <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
+                        Application Settings
                     </Typography>
                     <FormControlLabel
                         control={<Switch defaultChecked />}
@@ -264,62 +338,71 @@ const Settings = () => {
                 </CardContent>
             </Card>
 
-            {/* Add Token Dialog */}
-            <Dialog open={openTokenDialog} onClose={() => setOpenTokenDialog(false)} maxWidth="sm" fullWidth>
-                <DialogTitle>Add Refresh Token</DialogTitle>
+            {/* Property Add/Edit Dialog */}
+            <Dialog open={openPropertyDialog} onClose={() => setOpenPropertyDialog(false)} maxWidth="sm" fullWidth>
+                <DialogTitle>{editingProperty ? 'Edit Property' : 'Add New Property'}</DialogTitle>
                 <DialogContent>
                     <TextField
-                        autoFocus
-                        margin="dense"
-                        label="Name (e.g. My House)"
-                        fullWidth
-                        value={newTokenName}
-                        onChange={(e) => setNewTokenName(e.target.value)}
-                        sx={{ mb: 2 }}
+                        autoFocus margin="dense" label="Property Name (e.g. Summer House)"
+                        fullWidth value={propName} onChange={(e) => setPropName(e.target.value)}
+                        sx={{ mb: 2, mt: 1 }}
                     />
                     <TextField
-                        margin="dense"
-                        label="Refresh Token String"
-                        fullWidth
-                        multiline
-                        rows={3}
-                        value={newTokenValue}
-                        onChange={(e) => setNewTokenValue(e.target.value)}
+                        margin="dense" label="Eloverblik Refresh Token"
+                        fullWidth multiline rows={2} value={propToken} onChange={(e) => setPropToken(e.target.value)}
+                        placeholder="eyJhbGciOi..."
+                        sx={{ mb: 2 }}
                     />
+                    <Grid container spacing={2}>
+                        <Grid item xs={6}>
+                            <TextField
+                                label="Latitude" fullWidth value={propLat}
+                                onChange={(e) => setPropLat(e.target.value)}
+                                placeholder="55.1234"
+                            />
+                        </Grid>
+                        <Grid item xs={6}>
+                            <TextField
+                                label="Longitude" fullWidth value={propLng}
+                                onChange={(e) => setPropLng(e.target.value)}
+                                placeholder="10.5678"
+                            />
+                        </Grid>
+                    </Grid>
+                    <Box sx={{ mt: 2 }}>
+                        <FormControlLabel
+                            control={<Switch checked={propWeatherEnabled} onChange={(e) => setPropWeatherEnabled(e.target.checked)} />}
+                            label="Enable Weather Sync"
+                        />
+                    </Box>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setOpenTokenDialog(false)}>Cancel</Button>
-                    <Button onClick={handleAddToken} variant="contained" disabled={!newTokenName || !newTokenValue}>
-                        Save
+                <DialogActions sx={{ p: 2, pt: 0 }}>
+                    <Button onClick={() => setOpenPropertyDialog(false)}>Cancel</Button>
+                    <Button onClick={handleSaveProperty} variant="contained" disabled={!propName}>
+                        Save Property
                     </Button>
                 </DialogActions>
             </Dialog>
 
-            {/* Add Metering Point Dialog */}
-            <Dialog open={openMpDialog} onClose={() => setOpenMpDialog(false)} maxWidth="sm" fullWidth>
+            {/* Metering Point Dialog */}
+            <Dialog open={openMpDialog} onClose={() => setOpenMpDialog(false)} maxWidth="xs" fullWidth>
                 <DialogTitle>Add Metering Point</DialogTitle>
                 <DialogContent>
                     <TextField
-                        autoFocus
-                        margin="dense"
-                        label="Name (e.g. Main Meter)"
-                        fullWidth
-                        value={newMpName}
-                        onChange={(e) => setNewMpName(e.target.value)}
-                        sx={{ mb: 2 }}
+                        autoFocus margin="dense" label="Meter Name (e.g. Main Kitchen)"
+                        fullWidth value={newMpName} onChange={(e) => setNewMpName(e.target.value)}
+                        sx={{ mb: 2, mt: 1 }}
                     />
                     <TextField
-                        margin="dense"
-                        label="Metering Point ID"
-                        fullWidth
-                        value={newMpValue}
-                        onChange={(e) => setNewMpValue(e.target.value)}
+                        margin="dense" label="18-digit Metering Point ID"
+                        fullWidth value={newMpValue} onChange={(e) => setNewMpValue(e.target.value)}
+                        inputProps={{ maxLength: 18 }}
                     />
                 </DialogContent>
-                <DialogActions>
+                <DialogActions sx={{ p: 2, pt: 0 }}>
                     <Button onClick={() => setOpenMpDialog(false)}>Cancel</Button>
-                    <Button onClick={handleAddMp} variant="contained" disabled={!newMpName || !newMpValue}>
-                        Save
+                    <Button onClick={handleAddMp} variant="contained" disabled={!newMpName || newMpValue.length !== 18}>
+                        Add Meter
                     </Button>
                 </DialogActions>
             </Dialog>

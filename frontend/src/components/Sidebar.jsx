@@ -5,6 +5,9 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ApiIcon from '@mui/icons-material/Api';
+import CloudIcon from '@mui/icons-material/Cloud';
+import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
+import EditNoteIcon from '@mui/icons-material/EditNote';
 
 const items = [
     {
@@ -16,6 +19,21 @@ const items = [
         href: '/analysis',
         icon: <BarChartIcon fontSize="small" />,
         title: 'Analysis'
+    },
+    {
+        href: '/weather',
+        icon: <CloudIcon fontSize="small" />,
+        title: 'Weather'
+    },
+    {
+        href: '/compare',
+        icon: <CompareArrowsIcon fontSize="small" />,
+        title: 'Compare'
+    },
+    {
+        href: '/annotate',
+        icon: <EditNoteIcon fontSize="small" />,
+        title: 'Annotate'
     },
     {
         href: '/api-demo',

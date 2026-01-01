@@ -20,6 +20,22 @@ const Property = sequelize.define('Property', {
     refresh_token: {
         type: DataTypes.TEXT,
         allowNull: true
+    },
+    latitude: {
+        type: DataTypes.DECIMAL(9, 6),
+        allowNull: true,
+        comment: 'Latitude for weather data'
+    },
+    longitude: {
+        type: DataTypes.DECIMAL(9, 6),
+        allowNull: true,
+        comment: 'Longitude for weather data'
+    },
+    weather_sync_enabled: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+        comment: 'Whether to sync weather data for this property'
     }
 }, {
     tableName: 'properties',

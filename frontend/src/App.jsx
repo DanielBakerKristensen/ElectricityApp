@@ -5,6 +5,9 @@ import theme from './theme/theme';
 import DashboardLayout from './layouts/DashboardLayout';
 import Dashboard from './pages/Dashboard';
 import Analysis from './pages/Analysis';
+import Weather from './pages/Weather';
+import Compare from './pages/Compare';
+// import Annotate from './pages/Annotate';
 import Settings from './pages/Settings';
 import ApiDemo from './components/ApiDemo';
 import './App.css';
@@ -18,6 +21,9 @@ function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/analysis" element={<Analysis />} />
+            <Route path="/weather" element={<Weather />} />
+            <Route path="/compare" element={<Compare />} />
+            {/* <Route path="/annotate" element={<Annotate />} /> */}
             <Route path="/settings" element={<Settings />} />
             <Route path="/api-demo" element={<ApiDemo />} />
           </Routes>

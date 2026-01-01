@@ -24,10 +24,18 @@ const AnalysisToolbar = ({
     chartType,
     onChartTypeChange,
     comparisonMode,
-    onComparisonModeChange
+    onComparisonModeChange,
+    properties = [],
+    selectedPropertyId,
+    onPropertyChange,
+    selectedMpId,
+    onMpChange
 }) => {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+    const selectedProperty = properties.find(p => p.id === selectedPropertyId);
+    const availableMps = selectedProperty?.meteringPoints || [];
 
     return (
         <Box
@@ -46,6 +54,32 @@ const AnalysisToolbar = ({
                 alignItems={isMobile ? 'stretch' : 'center'}
                 flexWrap="wrap"
             >
+                <FormControl size="small" sx={{ minWidth: 150 }}>
+                    <InputLabel>Property</InputLabel>
+                    <Select
+                        value={selectedPropertyId || ''}
+                        label="Property"
+                        onChange={onPropertyChange}
+                    >
+                        {properties.map(p => (
+                            <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+
+                <FormControl size="small" sx={{ minWidth: 150 }} disabled={!selectedPropertyId}>
+                    <InputLabel>Meter</InputLabel>
+                    <Select
+                        value={selectedMpId || ''}
+                        label="Meter"
+                        onChange={onMpChange}
+                    >
+                        {availableMps.map(mp => (
+                            <MenuItem key={mp.id} value={mp.id}>{mp.name}</MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+
                 <DatePicker
                     label="Start Date"
                     value={startDate}
@@ -74,20 +108,6 @@ const AnalysisToolbar = ({
                         <MenuItem value="candlestick">Candlestick (Daily)</MenuItem>
                         <MenuItem value="bar">Bar (Hourly)</MenuItem>
                         <MenuItem value="line">Line (Trend)</MenuItem>
-                    </Select>
-                </FormControl>
-
-                <FormControl size="small" sx={{ minWidth: 150 }}>
-                    <InputLabel>Comparison</InputLabel>
-                    <Select
-                        value={comparisonMode}
-                        label="Comparison"
-                        onChange={onComparisonModeChange}
-                    >
-                        <MenuItem value="none">None</MenuItem>
-                        <MenuItem value="day">Day vs Day</MenuItem>
-                        <MenuItem value="week">Week vs Week</MenuItem>
-                        <MenuItem value="month">Month vs Month</MenuItem>
                     </Select>
                 </FormControl>
 

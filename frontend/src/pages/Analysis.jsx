@@ -17,14 +17,12 @@ import AnalysisToolbar from '../components/AnalysisToolbar';
 const Analysis = () => {
     const theme = useTheme();
 
-    // Helper function to calculate default date range (matching ApiDemo)
+    // Helper function to calculate default date range
     const calculateDefaultDates = () => {
         const endDate = new Date();
         endDate.setDate(endDate.getDate() - 2); // 2 days ago
-
         const startDate = new Date(endDate);
-        startDate.setDate(startDate.getDate() - 7); // 7 days before end (9 days ago from today)
-
+        startDate.setDate(startDate.getDate() - 7); // 7 days before
         return { startDate, endDate };
     };
 
@@ -36,51 +34,84 @@ const Analysis = () => {
     const [error, setError] = useState(null);
     const [startDate, setStartDate] = useState(defaultDates.startDate);
     const [endDate, setEndDate] = useState(defaultDates.endDate);
-
-    // New state for toolbar
     const [chartType, setChartType] = useState('candlestick');
     const [comparisonMode, setComparisonMode] = useState('none');
 
-    // Date validation function (matching ApiDemo)
+    // Properties state
+    const [properties, setProperties] = useState([]);
+    const [selectedPropertyId, setSelectedPropertyId] = useState('');
+    const [selectedMpId, setSelectedMpId] = useState('');
+
+    // Fetch properties on mount
+    useEffect(() => {
+        const fetchProperties = async () => {
+            try {
+                const response = await fetch('/api/settings/properties');
+                if (response.ok) {
+                    const data = await response.json();
+                    setProperties(data);
+                    if (data.length > 0) {
+                        setSelectedPropertyId(data[0].id);
+                        if (data[0].meteringPoints?.length > 0) {
+                            setSelectedMpId(data[0].meteringPoints[0].id);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to fetch properties:', err);
+            }
+        };
+        fetchProperties();
+    }, []);
+
+    const handlePropertyChange = (e) => {
+        const propId = e.target.value;
+        setSelectedPropertyId(propId);
+        const prop = properties.find(p => p.id === propId);
+        if (prop?.meteringPoints?.length > 0) {
+            setSelectedMpId(prop.meteringPoints[0].id);
+        } else {
+            setSelectedMpId('');
+        }
+    };
+
+    const handleMpChange = (e) => {
+        setSelectedMpId(e.target.value);
+    };
+
+    // Date validation
     const validateDateRange = (start, end) => {
-        // Check if start is after end
-        if (start > end) {
-            return "Start date must be before or equal to end date";
-        }
-
-        // Check if range exceeds 730 days (API limitation)
-        const diffTime = Math.abs(end - start);
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-        if (diffDays > 730) {
-            return "Date range cannot exceed 730 days (API limitation)";
-        }
-
-        return null; // No error
+        if (start > end) return "Start date must be before or equal to end date";
+        const diffDays = Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24));
+        if (diffDays > 730) return "Date range cannot exceed 730 days (API limitation)";
+        return null;
     };
 
     const fetchData = async () => {
-        // Validate date range before making API call
         const validationError = validateDateRange(startDate, endDate);
         if (validationError) {
             setError(validationError);
             return;
         }
 
+        if (!selectedMpId) {
+            setError("Please select a metering point");
+            return;
+        }
+
         setLoading(true);
         setError(null);
         try {
-            // Format using local date to avoid timezone issues
             const formatDate = (date) => {
                 const year = date.getFullYear();
                 const month = String(date.getMonth() + 1).padStart(2, '0');
                 const day = String(date.getDate()).padStart(2, '0');
                 return `${year}-${month}-${day}`;
             };
-            const response = await fetch(`/api/database-demo?dateFrom=${formatDate(startDate)}&dateTo=${formatDate(endDate)}`);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+
+            const url = `/api/database-demo?dateFrom=${formatDate(startDate)}&dateTo=${formatDate(endDate)}&meteringPointId=${selectedMpId}`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const data = await response.json();
             setDbData(data);
         } catch (err) {
@@ -91,7 +122,10 @@ const Analysis = () => {
         }
     };
 
-    // Process data for hourly chart
+    // ... rest of the component (processing logic and render)
+    // (Note: The rest remains the same, but using the new fetchData and AnalysisToolbar props)
+
+    // Process data logic remains same as before...
     const processHourlyData = (data) => {
         const resultItem = data?.result?.[0];
         if (!resultItem?.success || resultItem?.errorCode !== 10000) return [];
@@ -122,7 +156,6 @@ const Analysis = () => {
         return chartData.sort((a, b) => a.timestamp - b.timestamp);
     };
 
-    // Process data for daily range chart
     const processDailyRangeData = (data) => {
         const resultItem = data?.result?.[0];
         if (!resultItem?.success || resultItem?.errorCode !== 10000) return [];
@@ -197,11 +230,11 @@ const Analysis = () => {
         <LocalizationProvider dateAdapter={AdapterDateFns}>
             <Box>
                 <Box sx={{ mb: 4 }}>
-                    <Typography variant="h4" gutterBottom color="text.primary">
+                    <Typography variant="h4" gutterBottom color="text.primary" sx={{ fontWeight: 'bold' }}>
                         Analysis
                     </Typography>
                     <Typography variant="body1" color="text.secondary">
-                        Deep dive into your electricity consumption patterns.
+                        Deep dive into your electricity consumption patterns per property.
                     </Typography>
                 </Box>
 
@@ -216,37 +249,37 @@ const Analysis = () => {
                     onChartTypeChange={(e) => setChartType(e.target.value)}
                     comparisonMode={comparisonMode}
                     onComparisonModeChange={(e) => setComparisonMode(e.target.value)}
+                    properties={properties}
+                    selectedPropertyId={selectedPropertyId}
+                    onPropertyChange={handlePropertyChange}
+                    selectedMpId={selectedMpId}
+                    onMpChange={handleMpChange}
                 />
 
                 {error && (
-                    <Alert severity="error" sx={{ mb: 3 }}>
+                    <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
                         {error}
-                    </Alert>
-                )}
-
-                {comparisonMode !== 'none' && (
-                    <Alert severity="info" sx={{ mb: 3 }}>
-                        Comparison mode "{comparisonMode}" is selected. This feature is coming soon!
                     </Alert>
                 )}
 
                 <Grid container spacing={3}>
                     <Grid item xs={12}>
-                        <Card>
+                        <Card variant="outlined" sx={{ borderRadius: 2 }}>
                             <CardContent>
-                                <Typography variant="h6" gutterBottom>
+                                <Typography variant="h6" gutterBottom sx={{ fontWeight: 'medium' }}>
                                     {chartType === 'candlestick' ? 'Daily Range (Min/Max/Avg)' :
                                         chartType === 'bar' ? 'Hourly Consumption' :
                                             'Consumption Trend'}
                                 </Typography>
 
                                 {loading ? (
-                                    <Box sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>
-                                        Loading data...
+                                    <Box sx={{ p: 10, textAlign: 'center' }}>
+                                        <CircularProgress size={32} />
+                                        <Typography sx={{ mt: 2 }} color="text.secondary">Fetching consumption data...</Typography>
                                     </Box>
                                 ) : (!dbData) ? (
-                                    <Box sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>
-                                        No data available. Select a date range and click Refresh.
+                                    <Box sx={{ p: 10, textAlign: 'center', bgcolor: 'action.hover', borderRadius: 2 }}>
+                                        <Typography color="text.secondary">Select a property and date range to analyze your consumption.</Typography>
                                     </Box>
                                 ) : (
                                     <>

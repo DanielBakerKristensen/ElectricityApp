@@ -101,8 +101,13 @@ router.post('/trigger', adminAuth, async (req, res) => {
         }
 
         // Trigger manual sync
-        const { daysBack, dateFrom, dateTo } = req.body;
-        const result = await syncScheduler.triggerManualSync({ daysBack, dateFrom, dateTo });
+        const { daysBack, dateFrom, dateTo, propertyId } = req.body;
+        const result = await syncScheduler.triggerManualSync({
+            daysBack,
+            dateFrom,
+            dateTo,
+            propertyId
+        });
 
         if (result.success) {
             return res.status(200).json({

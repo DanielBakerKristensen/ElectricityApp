@@ -1,150 +1,155 @@
 const express = require('express');
 const router = express.Router();
 const { body, param, validationResult } = require('express-validator');
-const RefreshToken = require('../models/RefreshToken');
-const MeteringPoint = require('../models/MeteringPoint');
+const { Property, MeteringPoint } = require('../models');
 const logger = require('../utils/logger');
 
-// Middleware to handle validation errors
 const validate = (req, res, next) => {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-    }
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
     next();
 };
 
-// --- Refresh Tokens ---
+// --- Properties ---
 
-// GET /api/settings/tokens
-router.get('/tokens', async (req, res) => {
+// GET /api/settings/properties
+router.get('/properties', async (req, res) => {
     try {
-        const tokens = await RefreshToken.findAll({
-            order: [['createdAt', 'DESC']]
+        const properties = await Property.findAll({
+            include: [{ model: MeteringPoint, as: 'meteringPoints' }]
         });
 
-        // Mask tokens for security
-        const maskedTokens = tokens.map(t => ({
-            id: t.id,
-            name: t.name,
-            token: t.token ? `${t.token.substring(0, 10)}...` : null,
-            createdAt: t.createdAt
-        }));
+        // Mask tokens
+        const results = properties.map(p => {
+            const json = p.toJSON();
+            if (json.refresh_token) {
+                json.refresh_token = `${json.refresh_token.substring(0, 10)}...`;
+            }
+            return json;
+        });
 
-        res.json(maskedTokens);
+        res.json(results);
     } catch (error) {
-        logger.error('Error fetching refresh tokens:', error);
-        res.status(500).json({ error: 'Failed to fetch refresh tokens' });
+        logger.error('Error fetching properties:', error);
+        res.status(500).json({ error: 'Failed to fetch properties' });
     }
 });
 
-// POST /api/settings/tokens
-router.post('/tokens', [
-    body('token').notEmpty().withMessage('Token is required'),
-    body('name').optional().isString().trim(),
+// POST /api/settings/properties
+router.post('/properties', [
+    body('name').notEmpty().withMessage('Name is required'),
+    body('refresh_token').optional().isString(),
+    body('latitude').optional().isDecimal(),
+    body('longitude').optional().isDecimal(),
     validate
 ], async (req, res) => {
     try {
-        const { name, token } = req.body;
-
-        const newToken = await RefreshToken.create({
-            name: name || 'My Token',
-            token
-        });
-
-        res.status(201).json({
-            id: newToken.id,
-            name: newToken.name,
-            createdAt: newToken.createdAt
-        });
+        const property = await Property.create(req.body);
+        res.status(201).json(property);
     } catch (error) {
-        logger.error('Error creating refresh token:', error);
-        res.status(500).json({ error: 'Failed to create refresh token' });
+        logger.error('Error creating property:', error);
+        res.status(500).json({ error: 'Failed to create property' });
     }
 });
 
-// DELETE /api/settings/tokens/:id
-router.delete('/tokens/:id', [
-    param('id').isInt().withMessage('ID must be an integer'),
+// PATCH /api/settings/properties/:id
+router.patch('/properties/:id', [
+    param('id').isInt(),
+    body('name').optional().notEmpty(),
+    body('refresh_token').optional().isString(),
+    body('latitude').optional().isDecimal(),
+    body('longitude').optional().isDecimal(),
+    body('weather_sync_enabled').optional().isBoolean(),
     validate
 ], async (req, res) => {
     try {
         const { id } = req.params;
-        const deleted = await RefreshToken.destroy({
-            where: { id }
-        });
-
-        if (deleted) {
-            res.status(204).send();
+        const [updated] = await Property.update(req.body, { where: { id } });
+        if (updated) {
+            const property = await Property.findByPk(id);
+            res.json(property);
         } else {
-            res.status(404).json({ error: 'Token not found' });
+            res.status(404).json({ error: 'Property not found' });
         }
     } catch (error) {
-        logger.error('Error deleting refresh token:', error);
-        res.status(500).json({ error: 'Failed to delete refresh token' });
+        logger.error('Error updating property:', error);
+        res.status(500).json({ error: 'Failed to update property' });
     }
 });
 
-// --- Metering Points ---
-
-// GET /api/settings/metering-points
-router.get('/metering-points', async (req, res) => {
+// DELETE /api/settings/properties/:id
+router.delete('/properties/:id', async (req, res) => {
     try {
-        const mps = await MeteringPoint.findAll({
-            order: [['createdAt', 'DESC']]
-        });
+        const { id } = req.params;
+        const deleted = await Property.destroy({ where: { id } });
+        if (deleted) res.status(204).send();
+        else res.status(404).json({ error: 'Property not found' });
+    } catch (error) {
+        logger.error('Error deleting property:', error);
+        res.status(500).json({ error: 'Failed' });
+    }
+});
 
+// --- Metering Points (Scoped to Property) ---
+
+// GET /api/settings/properties/:propertyId/metering-points
+router.get('/properties/:propertyId/metering-points', async (req, res) => {
+    try {
+        const { propertyId } = req.params;
+        const mps = await MeteringPoint.findAll({
+            where: { property_id: propertyId }
+        });
         res.json(mps);
     } catch (error) {
-        logger.error('Error fetching metering points:', error);
-        res.status(500).json({ error: 'Failed to fetch metering points' });
+        res.status(500).json({ error: 'Failed' });
     }
 });
 
-// POST /api/settings/metering-points
-router.post('/metering-points', [
-    body('meteringPointId')
-        .notEmpty().withMessage('Metering Point ID is required')
-        .isLength({ min: 18, max: 18 }).withMessage('Metering Point ID must be exactly 18 digits')
-        .isNumeric().withMessage('Metering Point ID must contain only digits'),
-    body('name').optional().isString().trim(),
+// POST /api/settings/properties/:propertyId/metering-points
+router.post('/properties/:propertyId/metering-points', [
+    param('propertyId').isInt(),
+    body('meteringPointId').isLength({ min: 18, max: 18 }).isNumeric(),
+    body('name').optional().isString(),
     validate
 ], async (req, res) => {
     try {
+        const { propertyId } = req.params;
         const { name, meteringPointId } = req.body;
 
         const newMp = await MeteringPoint.create({
+            property_id: propertyId,
             name: name || 'My Meter',
             meteringPointId: meteringPointId.trim()
         });
-
         res.status(201).json(newMp);
     } catch (error) {
-        logger.error('Error creating metering point:', error);
-        res.status(500).json({ error: 'Failed to create metering point' });
+        res.status(500).json({ error: 'Failed' });
     }
 });
 
 // DELETE /api/settings/metering-points/:id
-router.delete('/metering-points/:id', [
-    param('id').isInt().withMessage('ID must be an integer'),
-    validate
-], async (req, res) => {
+router.delete('/metering-points/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const deleted = await MeteringPoint.destroy({
-            where: { id }
-        });
-
-        if (deleted) {
-            res.status(204).send();
-        } else {
-            res.status(404).json({ error: 'Metering point not found' });
-        }
+        const deleted = await MeteringPoint.destroy({ where: { id } });
+        if (deleted) res.status(204).send();
+        else res.status(404).json({ error: 'Not found' });
     } catch (error) {
-        logger.error('Error deleting metering point:', error);
-        res.status(500).json({ error: 'Failed to delete metering point' });
+        res.status(500).json({ error: 'Failed' });
     }
+});
+
+// --- Legacy Compatibility (Optional, can be removed once frontend is updated) ---
+// Masked tokens was previously at GET /api/settings/tokens
+router.get('/tokens', async (req, res) => {
+    const props = await Property.findAll();
+    const legacy = props.filter(p => p.refresh_token).map(p => ({
+        id: p.id,
+        name: p.name,
+        token: `${p.refresh_token.substring(0, 10)}...`,
+        createdAt: p.createdAt
+    }));
+    res.json(legacy);
 });
 
 module.exports = router;

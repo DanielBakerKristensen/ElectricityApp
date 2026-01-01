@@ -34,7 +34,7 @@ const AnalysisToolbar = ({
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
-    const selectedProperty = properties.find(p => p.id === selectedPropertyId);
+    const selectedProperty = properties.find(p => Number(p.id) === Number(selectedPropertyId));
     const availableMps = selectedProperty?.meteringPoints || [];
 
     return (

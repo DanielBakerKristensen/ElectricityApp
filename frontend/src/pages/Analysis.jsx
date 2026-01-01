@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Chart from 'react-apexcharts';
 import {
     Box,
@@ -7,6 +7,7 @@ import {
     Grid,
     Typography,
     Alert,
+    CircularProgress,
     useTheme
 } from '@mui/material';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -67,7 +68,7 @@ const Analysis = () => {
     const handlePropertyChange = (e) => {
         const propId = e.target.value;
         setSelectedPropertyId(propId);
-        const prop = properties.find(p => p.id === propId);
+        const prop = properties.find(p => p.id === Number(propId));
         if (prop?.meteringPoints?.length > 0) {
             setSelectedMpId(prop.meteringPoints[0].id);
         } else {

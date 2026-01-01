@@ -164,9 +164,30 @@ if (process.env.NODE_ENV !== 'production') {
  */
 // Health check endpoint
 app.get('/health', async (req, res) => {
+  const healthInfo = {
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    version: '1.0.0',
+    components: {
+      api: { status: 'up' },
+      database: { status: 'down' }
+    },
+    sync: {
+      enabled: process.env.SYNC_ENABLED !== 'false',
+      lastRun: null,
+      lastStatus: null,
+      recordsSynced: null
+    }
+  };
+
   try {
-    // Query most recent sync status from data_sync_log
-    const [lastSyncResults] = await sequelize.query(
+    // 1. Check Database Connectivity
+    await sequelize.authenticate();
+    healthInfo.components.database.status = 'up';
+
+    // 2. Query most recent sync status from data_sync_log
+    const lastSyncResults = await sequelize.query(
       `SELECT 
         status,
         records_synced,
@@ -178,36 +199,24 @@ app.get('/health', async (req, res) => {
       { type: sequelize.QueryTypes.SELECT }
     );
 
-    const syncInfo = {
-      enabled: process.env.SYNC_ENABLED !== 'false',
-      lastRun: lastSyncResults?.created_at || null,
-      lastStatus: lastSyncResults?.status || null,
-      recordsSynced: lastSyncResults?.records_synced || null
-    };
+    if (lastSyncResults && lastSyncResults.length > 0) {
+      const lastSync = lastSyncResults[0];
+      healthInfo.sync = {
+        ...healthInfo.sync,
+        lastRun: lastSync.created_at,
+        lastStatus: lastSync.status,
+        recordsSynced: lastSync.records_synced,
+        errorMessage: lastSync.error_message
+      };
+    }
 
-    res.status(200).json({
-      status: 'OK',
-      timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV || 'development',
-      version: '1.0.0',
-      sync: syncInfo
-    });
+    res.status(200).json(healthInfo);
   } catch (error) {
-    // If database query fails, still return health status but without sync info
-    logger.error('Error querying sync status in health check:', error);
-    res.status(200).json({
-      status: 'OK',
-      timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV || 'development',
-      version: '1.0.0',
-      sync: {
-        enabled: process.env.SYNC_ENABLED !== 'false',
-        lastRun: null,
-        lastStatus: null,
-        recordsSynced: null,
-        error: 'Unable to query sync status'
-      }
-    });
+    logger.error('Health check failed:', error);
+
+    // If DB is down, we still return 200 but status might be degraded or components shows down
+    healthInfo.status = 'DEGRADED';
+    res.status(200).json(healthInfo);
   }
 });
 
@@ -259,7 +268,7 @@ const server = app.listen(PORT, async () => {
         const syncService = new SyncService(eloverblikService, sequelize, logger);
         const weatherSyncService = new WeatherSyncService(sequelize, logger);
         syncScheduler = new SyncScheduler(syncService, weatherSyncService, logger);
-        
+
         // Delay start to allow server to fully initialize
         setTimeout(() => {
           syncScheduler.start();

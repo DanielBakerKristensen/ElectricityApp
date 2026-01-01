@@ -14,6 +14,7 @@ if (!process.env.DOCKER_ENV) {
 }
 
 const { sequelize } = require('./config/database');
+const { Property } = require('./models');
 const SyncService = require('./services/sync-service');
 const eloverblikService = require('./services/eloverblik-service');
 
@@ -22,13 +23,28 @@ async function run() {
         console.log('Initializing services...');
         const syncService = new SyncService(eloverblikService, sequelize, logger);
 
-        console.log('Starting backfill for range: 2024-01-01 to 2024-12-31');
-        const result = await syncService.syncConsumptionData({
-            dateFrom: '2024-01-01',
-            dateTo: '2024-12-31'
-        });
+        const dateFrom = '2025-01-01';
+        const dateTo = '2025-12-31';
 
-        console.log('Backfill completed. Result:', JSON.stringify(result, null, 2));
+        console.log(`Fetching properties to backfill from ${dateFrom} to ${dateTo}...`);
+        const properties = await Property.findAll();
+
+        if (properties.length === 0) {
+            console.log('No properties found in database to sync.');
+            return;
+        }
+
+        for (const property of properties) {
+            console.log(`\n--- Syncing Property: ${property.name} (ID: ${property.id}) ---`);
+            const result = await syncService.syncPropertyConsumption({
+                propertyId: property.id,
+                dateFrom,
+                dateTo
+            });
+            console.log(`Result for ${property.name}:`, JSON.stringify(result, null, 2));
+        }
+
+        console.log('\n✅ All property backfills completed.');
     } catch (error) {
         console.error('Backfill failed:', error);
     } finally {

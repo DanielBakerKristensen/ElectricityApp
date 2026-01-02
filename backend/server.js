@@ -1,23 +1,23 @@
 const path = require('path');
 const fs = require('fs');
 
+console.log('--- STARTUP BREADCRUMB: TOP OF FILE ---');
+
 // Auto-detect environment and load appropriate .env file
-// Check for Docker environment indicators
 const isDocker = fs.existsSync('/.dockerenv') ||
   process.env.DOCKER_ENV === 'true' ||
   process.env.HOSTNAME?.includes('docker') ||
   fs.existsSync('/proc/1/cgroup') && fs.readFileSync('/proc/1/cgroup', 'utf8').includes('docker');
 
 const envFile = isDocker ? '.env.docker' : '.env.local';
-// For Docker, check in current directory first, then parent
 const envPath = isDocker ?
   (fs.existsSync(path.join(__dirname, envFile)) ? path.join(__dirname, envFile) : path.join(__dirname, '..', envFile)) :
   path.join(__dirname, '..', envFile);
 
-// Fallback to .env if specific file doesn't exist
 const finalEnvPath = fs.existsSync(envPath) ? envPath : path.join(__dirname, '../.env');
-
 require('dotenv').config({ path: finalEnvPath });
+
+console.log('--- STARTUP BREADCRUMB: ENV LOADED ---');
 console.log(`🔧 Environment: ${isDocker ? 'Docker' : 'Local'}`);
 console.log(`🔧 Loaded environment from: ${path.basename(finalEnvPath)}`);
 
@@ -36,11 +36,8 @@ const SyncScheduler = require('./services/sync-scheduler');
 const eloverblikService = require('./services/eloverblik-service');
 
 const app = express();
-
-// Trust first proxy (for Heroku, etc.)
 app.set('trust proxy', 1);
 
-// CORS configuration
 const corsOptions = {
   origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:3000', 'http://127.0.0.1:3000'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -50,13 +47,11 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-
-// Security middleware - Strict CSP
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"], // unsafe-inline for some Chart libs if needed, but 'self' is better
+      scriptSrc: ["'self'", "'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "blob:"],
@@ -67,23 +62,18 @@ app.use(helmet({
   },
   crossOriginEmbedderPolicy: false,
 }));
-
-// Handle preflight requests
 app.options('*', cors(corsOptions));
 
-// Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100
 });
 app.use('/api/', limiter);
-
-// Body parser middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// Swagger configuration
+console.log('--- STARTUP BREADCRUMB: PRE-SWAGGER ---');
 const swaggerOptions = {
   definition: {
     openapi: '3.0.0',
@@ -103,12 +93,8 @@ const swaggerOptions = {
 };
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
+console.log('--- STARTUP BREADCRUMB: POST-SWAGGER ---');
 
-// Debug: Log the swagger spec to see what's being generated
-// console.log('Swagger spec paths:', JSON.stringify(swaggerSpec.paths, null, 2));
-console.log('Scanning for API docs in:', swaggerOptions.apis);
-
-// API Documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   explorer: true,
   customCss: '.swagger-ui .topbar { display: none }',
@@ -116,269 +102,72 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   customfavIcon: '/favicon.ico'
 }));
 
-// API Routes
+console.log('--- STARTUP BREADCRUMB: PRE-ROUTES ---');
 const { router: syncRoutes, adminAuth } = require('./routes/sync-routes');
 app.use('/api/settings', require('./routes/settings-routes'));
 app.use('/api/auth', require('./routes/auth-routes'));
 app.use('/api/sync', syncRoutes);
 app.use('/api/weather', require('./routes/weather-routes'));
+app.use('/api', require('./routes/electricity-routes'));
+console.log('--- STARTUP BREADCRUMB: POST-ROUTES ---');
 
-// Electricity routes - some need auth
-const electricityRoutes = require('./routes/electricity-routes');
-app.use('/api', electricityRoutes);
-
-// Register models
 require('./models/RefreshToken');
 require('./models/MeteringPoint');
 require('./models/WeatherData');
 
-// Sync database in development
-if (process.env.NODE_ENV !== 'production') {
-  sequelize.sync({ alter: true }).then(() => {
-    logger.info('Database models synced');
-  }).catch(err => {
-    logger.error('Failed to sync database models:', err);
-  });
-}
-
-/**
- * @swagger
- * /health:
- *   get:
- *     summary: Health check endpoint
- *     description: Returns the health status of the API, including database connectivity and sync status
- *     tags:
- *       - System
- *     responses:
- *       200:
- *         description: Service is healthy
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: OK
- *                 timestamp:
- *                   type: string
- *                   format: date-time
- *                   example: "2024-01-15T10:30:00.000Z"
- *                 environment:
- *                   type: string
- *                   example: production
- *                 version:
- *                   type: string
- *                   example: "1.0.0"
- *                 sync:
- *                   type: object
- *                   properties:
- *                     enabled:
- *                       type: boolean
- *                     lastRun:
- *                       type: string
- *                       format: date-time
- *                     lastStatus:
- *                       type: string
- *                     recordsSynced:
- *                       type: number
- */
-// Health check endpoint
-app.get('/api/health', async (req, res) => {
-  const healthInfo = {
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    version: '1.0.0',
-    components: {
-      api: { status: 'up' },
-      database: { status: 'down' }
-    },
-    sync: {
-      enabled: process.env.SYNC_ENABLED !== 'false',
-      lastRun: null,
-      lastStatus: null,
-      recordsSynced: null
-    }
-  };
-
-  try {
-    // 1. Check Database Connectivity
-    await sequelize.authenticate();
-    healthInfo.components.database.status = 'up';
-
-    // 2. Query most recent sync status from data_sync_log
-    const lastSyncResults = await sequelize.query(
-      `SELECT 
-        status,
-        records_synced,
-        created_at,
-        error_message
-      FROM data_sync_log
-      ORDER BY created_at DESC
-      LIMIT 1`,
-      { type: sequelize.QueryTypes.SELECT }
-    );
-
-    if (lastSyncResults && lastSyncResults.length > 0) {
-      const lastSync = lastSyncResults[0];
-      healthInfo.sync = {
-        ...healthInfo.sync,
-        lastRun: lastSync.created_at,
-        lastStatus: lastSync.status,
-        recordsSynced: lastSync.records_synced,
-        errorMessage: lastSync.error_message
-      };
-    }
-
-    res.status(200).json(healthInfo);
-  } catch (error) {
-    logger.error('Health check failed:', error);
-
-    // If DB is down, we still return 200 but status might be degraded or components shows down
-    healthInfo.status = 'DEGRADED';
-    res.status(200).json(healthInfo);
-  }
-});
-
-// Root endpoint redirects to API docs
-app.get('/', (req, res) => {
-  res.redirect('/api-docs');
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  logger.error('Unhandled error:', {
-    message: err.message,
-    stack: err.stack,
-    url: req.originalUrl,
-    method: req.method,
-    params: req.params,
-    query: req.query,
-    body: req.body
-  });
-
-  res.status(500).json({
-    error: 'Internal Server Error',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong!',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-  });
-});
-
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({
-    error: 'Not Found',
-    message: `Cannot ${req.method} ${req.originalUrl}`
-  });
-});
-
-// Start server
-const PORT = process.env.PORT || 5000;
-let syncScheduler = null;
-
-const server = app.listen(PORT, async () => {
+async function startServer() {
+  console.log('--- STARTUP BREADCRUMB: startServer() CALLED ---');
   try {
     await testConnection();
-    logger.info(`Server running on port ${PORT}`);
-    logger.info(`API Documentation available at http://localhost:${PORT}/api-docs`);
+    console.log('--- STARTUP BREADCRUMB: DB AUTHENTICATED ---');
 
-    // Seed default admin user if needed
-    const User = require('./models/User');
-    const bcrypt = require('bcryptjs');
-    const userCount = await User.count();
-    if (userCount === 0) {
-      const defaultEmail = process.env.DEFAULT_ADMIN_EMAIL || 'admin@example.com';
-      const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'admin123';
-      const hashedPassword = await bcrypt.hash(defaultPassword, 10);
-      await User.create({
-        email: defaultEmail,
-        password_hash: hashedPassword
-      });
-      logger.info(`Default admin user created: ${defaultEmail}`);
+    if (process.env.NODE_ENV !== 'production') {
+      logger.info('Syncing database models...');
+      await sequelize.sync({ alter: true });
+      logger.info('Database models synced');
     }
 
-    // Initialize sync scheduler after database connection is established
-    if (process.env.SYNC_ENABLED !== 'false') {
-      try {
+    const PORT = process.env.PORT || 5000;
+    const server = app.listen(PORT, async () => {
+      logger.info(`Server running on port ${PORT}`);
+      console.log('--- STARTUP BREADCRUMB: SERVER LISTENING ---');
+
+      const User = require('./models/User');
+      const bcrypt = require('bcryptjs');
+      const userCount = await User.count();
+      if (userCount === 0) {
+        const hashedPassword = await bcrypt.hash('admin123', 10);
+        await User.create({
+          email: 'admin@example.com',
+          password_hash: hashedPassword
+        });
+        logger.info('Default admin user created');
+      }
+
+      if (process.env.SYNC_ENABLED !== 'false') {
         const syncService = new SyncService(eloverblikService, sequelize, logger);
         const weatherSyncService = new WeatherSyncService(sequelize, logger);
-        syncScheduler = new SyncScheduler(syncService, weatherSyncService, logger);
-
-        // Delay start to allow server to fully initialize
-        setTimeout(() => {
-          syncScheduler.start();
-        }, 10000);
-
-        // Store syncScheduler in app.locals for access by routes
+        const syncScheduler = new SyncScheduler(syncService, weatherSyncService, logger);
+        setTimeout(() => syncScheduler.start(), 10000);
         app.locals.syncScheduler = syncScheduler;
-
-        logger.info('Sync scheduler initialized and started (energy + weather)');
-      } catch (schedulerError) {
-        logger.error('Failed to initialize sync scheduler:', schedulerError);
-        // Don't exit - allow server to continue running even if scheduler fails
       }
-    } else {
-      logger.info('Sync scheduler is disabled (SYNC_ENABLED=false)');
-    }
+    });
+
+    const gracefulShutdown = (signal) => {
+      server.close(async () => {
+        await sequelize.close();
+        process.exit(0);
+      });
+      setTimeout(() => process.exit(1), 10000);
+    };
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
   } catch (error) {
-    logger.error('Failed to start server:', error);
+    console.error('--- STARTUP BREADCRUMB: ERROR IN startServer ---', error);
     process.exit(1);
   }
-});
+}
 
-// Graceful shutdown handler
-const gracefulShutdown = (signal) => {
-  logger.info(`${signal} received, shutting down gracefully`);
-
-  // Stop the sync scheduler first
-  if (syncScheduler) {
-    try {
-      syncScheduler.stop();
-      logger.info('Sync scheduler stopped');
-    } catch (error) {
-      logger.error('Error stopping sync scheduler:', error);
-    }
-  }
-
-  // Close the server
-  server.close(async () => {
-    logger.info('HTTP server closed');
-
-    // Close database connections
-    try {
-      await sequelize.close();
-      logger.info('Database connections closed');
-    } catch (error) {
-      logger.error('Error closing database connections:', error);
-    }
-
-    process.exit(0);
-  });
-
-  // Force shutdown after 10 seconds if graceful shutdown fails
-  setTimeout(() => {
-    logger.error('Forced shutdown after timeout');
-    process.exit(1);
-  }, 10000);
-};
-
-// Handle SIGTERM signal (Docker stop, Kubernetes termination)
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-
-// Handle SIGINT signal (Ctrl+C)
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (err) => {
-  logger.error('Unhandled Rejection:', err);
-  gracefulShutdown('unhandledRejection');
-});
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (err) => {
-  logger.error('Uncaught Exception:', err);
-  gracefulShutdown('uncaughtException');
-});
-
-module.exports = server;
+console.log('--- STARTUP BREADCRUMB: KICKING OFF startServer() ---');
+startServer();

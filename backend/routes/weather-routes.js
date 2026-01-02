@@ -4,7 +4,12 @@ const WeatherSyncService = require('../services/weather-sync-service');
 const WeatherAnalysisService = require('../services/weather-analysis-service');
 const { sequelize } = require('../config/database');
 
+const { adminAuth } = require('./sync-routes');
+
 const router = express.Router();
+
+// Apply adminAuth to all weather routes
+router.use(adminAuth);
 
 /**
  * @swagger

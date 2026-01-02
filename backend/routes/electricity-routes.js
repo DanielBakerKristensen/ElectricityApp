@@ -3,6 +3,7 @@ const axios = require('axios');
 const { QueryTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { Property, MeteringPoint } = require('../models');
+const { adminAuth } = require('./sync-routes');
 const router = express.Router();
 
 const ELOVERBLIK_BASE_URL = 'https://api.eloverblik.dk/customerapi/api';
@@ -82,9 +83,11 @@ function formatForFrontend(dbResults) {
  * /api/test-data:
  *   get:
  *     summary: Fetch electricity consumption data from Eloverblik API
- *     description: Retrieves hourly electricity consumption data directly from the Eloverblik API for a specified date range
+ *     description: Retrieves hourly electricity consumption data directly from the Eloverblik API for a specified date range. Requires admin authentication.
  *     tags:
  *       - Electricity Data
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: dateFrom
@@ -114,7 +117,7 @@ function formatForFrontend(dbResults) {
  *       200:
  *         description: Successfully retrieved consumption data
  */
-router.get('/test-data', async (req, res) => {
+router.get('/test-data', adminAuth, async (req, res) => {
     const { dateFrom, dateTo, propertyId, meteringPointId: dbMpId } = req.query;
 
     if (!dateFrom || !dateTo) {
@@ -184,9 +187,11 @@ router.get('/test-data', async (req, res) => {
  * /api/database-demo:
  *   get:
  *     summary: Fetch electricity consumption data from local database
- *     description: Retrieves hourly electricity consumption data from the local PostgreSQL database
+ *     description: Retrieves hourly electricity consumption data from the local PostgreSQL database. Requires admin authentication.
  *     tags:
  *       - Electricity Data
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: dateFrom
@@ -209,7 +214,7 @@ router.get('/test-data', async (req, res) => {
  *       200:
  *         description: Successfully retrieved consumption data
  */
-router.get('/database-demo', async (req, res) => {
+router.get('/database-demo', adminAuth, async (req, res) => {
     const { dateFrom, dateTo, meteringPointId: dbMpId } = req.query;
 
     if (!dateFrom || !dateTo) {

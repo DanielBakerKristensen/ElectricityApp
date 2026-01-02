@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  k6:
+    image: grafana/k6:latest
+    container_name: k6-load-tester
+    volumes:
+      - .:/scripts
+    networks:
+      - electricity-network
+    environment:
+      - BASE_URL=http://backend:5000
+      - ADMIN_TOKEN=${ADMIN_TOKEN}
+    command: run /scripts/k6-script.js
+
+networks:
+  electricity-network:
+    external: true
+    name: electricityapp_electricity-network

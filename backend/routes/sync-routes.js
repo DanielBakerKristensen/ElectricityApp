@@ -1,4 +1,5 @@
 const express = require('express');
+const jwt = require('jsonwebtoken');
 const router = express.Router();
 
 /**
@@ -32,6 +33,32 @@ function adminAuth(req, res, next) {
     }
 
     next();
+}
+
+/**
+ * JWT authentication middleware for user sessions
+ */
+function userAuth(req, res, next) {
+    const token = req.cookies.auth_token;
+
+    if (!token) {
+        return res.status(401).json({
+            error: 'Unauthorized',
+            message: 'Authentication required'
+        });
+    }
+
+    try {
+        const JWT_SECRET = process.env.JWT_SECRET || 'your-fallback-secret';
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.user = decoded;
+        next();
+    } catch (error) {
+        return res.status(401).json({
+            error: 'Unauthorized',
+            message: 'Invalid or expired session'
+        });
+    }
 }
 
 /**
@@ -135,4 +162,8 @@ router.post('/trigger', adminAuth, async (req, res) => {
     }
 });
 
-module.exports = router;
+module.exports = {
+    router,
+    adminAuth,
+    userAuth
+};

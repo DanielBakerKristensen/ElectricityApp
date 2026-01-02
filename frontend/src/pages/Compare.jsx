@@ -1,19 +1,17 @@
 import React, { useState } from 'react';
-import {
-    Box,
-    Card,
-    CardContent,
-    Grid,
-    Typography,
-    FormControl,
-    InputLabel,
-    Select,
-    MenuItem,
-    Button,
-    Alert,
-    Stack,
-    Chip
-} from '@mui/material';
+import Box from '@mui/material/Box';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Grid from '@mui/material/Grid';
+import Typography from '@mui/material/Typography';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
+import Button from '@mui/material/Button';
+import Alert from '@mui/material/Alert';
+import Stack from '@mui/material/Stack';
+import Chip from '@mui/material/Chip';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -22,11 +20,12 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import ElectricBoltIcon from '@mui/icons-material/ElectricBolt';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import { authFetch } from '../utils/api';
 
 const ComparisonCard = ({ title, current, previous, change, trend, unit = '' }) => {
     const isImprovement = trend === 'improvement';
     const isIncrease = change.startsWith('+');
-    
+
     return (
         <Card sx={{ height: '100%' }}>
             <CardContent>

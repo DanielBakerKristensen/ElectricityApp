@@ -3,12 +3,17 @@ const router = express.Router();
 const { body, param, validationResult } = require('express-validator');
 const { Property, MeteringPoint } = require('../models');
 const logger = require('../utils/logger');
+// Re-using the adminAuth from sync-routes (better to move to a middleware utility eventually)
+const { adminAuth } = require('./sync-routes');
 
 const validate = (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
     next();
 };
+
+// Apply admin authentication to ALL settings routes
+router.use(adminAuth);
 
 // --- Properties ---
 

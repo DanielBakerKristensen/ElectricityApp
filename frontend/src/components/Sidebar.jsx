@@ -8,6 +8,8 @@ import ApiIcon from '@mui/icons-material/Api';
 import CloudIcon from '@mui/icons-material/Cloud';
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import EditNoteIcon from '@mui/icons-material/EditNote';
+import LogoutIcon from '@mui/icons-material/Logout';
+import { useAuth } from '../context/AuthContext';
 
 const items = [
     {
@@ -51,6 +53,7 @@ const Sidebar = ({ open, onClose }) => {
     const theme = useTheme();
     const lgUp = useMediaQuery(theme.breakpoints.up('lg'));
     const location = useLocation();
+    const { logout } = useAuth();
 
     const content = (
         <Box
@@ -117,6 +120,26 @@ const Sidebar = ({ open, onClose }) => {
                         );
                     })}
                 </List>
+            </Box>
+            <Box sx={{ p: 2, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                <ListItemButton
+                    onClick={logout}
+                    sx={{
+                        borderRadius: 1,
+                        color: 'error.main',
+                        '&:hover': {
+                            backgroundColor: 'rgba(244, 67, 54, 0.08)',
+                        },
+                    }}
+                >
+                    <ListItemIcon sx={{ color: 'error.main', minWidth: 0, mr: 3 }}>
+                        <LogoutIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText
+                        primary="Logout"
+                        primaryTypographyProps={{ fontWeight: 500, fontSize: '0.95rem' }}
+                    />
+                </ListItemButton>
             </Box>
         </Box>
     );

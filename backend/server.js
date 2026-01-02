@@ -24,6 +24,7 @@ console.log(`🔧 Loaded environment from: ${path.basename(finalEnvPath)}`);
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
@@ -39,12 +40,9 @@ const app = express();
 // Trust first proxy (for Heroku, etc.)
 app.set('trust proxy', 1);
 
-// Security middleware
-app.use(helmet());
-
 // CORS configuration
 const corsOptions = {
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:3000', 'http://127.0.0.1:3000'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
@@ -52,6 +50,23 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+
+// Security middleware - Strict CSP
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"], // unsafe-inline for some Chart libs if needed, but 'self' is better
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      connectSrc: ["'self'", "https://api.eloverblik.dk"],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
 
 // Handle preflight requests
 app.options('*', cors(corsOptions));
@@ -66,6 +81,7 @@ app.use('/api/', limiter);
 // Body parser middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // Swagger configuration
 const swaggerOptions = {
@@ -89,7 +105,7 @@ const swaggerOptions = {
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
 // Debug: Log the swagger spec to see what's being generated
-console.log('Swagger spec paths:', JSON.stringify(swaggerSpec.paths, null, 2));
+// console.log('Swagger spec paths:', JSON.stringify(swaggerSpec.paths, null, 2));
 console.log('Scanning for API docs in:', swaggerOptions.apis);
 
 // API Documentation
@@ -101,10 +117,15 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 }));
 
 // API Routes
+const { router: syncRoutes, adminAuth } = require('./routes/sync-routes');
 app.use('/api/settings', require('./routes/settings-routes'));
-app.use('/api/sync', require('./routes/sync-routes'));
+app.use('/api/auth', require('./routes/auth-routes'));
+app.use('/api/sync', syncRoutes);
 app.use('/api/weather', require('./routes/weather-routes'));
-app.use('/api', require('./routes/electricity-routes'));
+
+// Electricity routes - some need auth
+const electricityRoutes = require('./routes/electricity-routes');
+app.use('/api', electricityRoutes);
 
 // Register models
 require('./models/RefreshToken');
@@ -163,7 +184,7 @@ if (process.env.NODE_ENV !== 'production') {
  *                       type: number
  */
 // Health check endpoint
-app.get('/health', async (req, res) => {
+app.get('/api/health', async (req, res) => {
   const healthInfo = {
     status: 'OK',
     timestamp: new Date().toISOString(),
@@ -261,6 +282,21 @@ const server = app.listen(PORT, async () => {
     await testConnection();
     logger.info(`Server running on port ${PORT}`);
     logger.info(`API Documentation available at http://localhost:${PORT}/api-docs`);
+
+    // Seed default admin user if needed
+    const User = require('./models/User');
+    const bcrypt = require('bcryptjs');
+    const userCount = await User.count();
+    if (userCount === 0) {
+      const defaultEmail = process.env.DEFAULT_ADMIN_EMAIL || 'admin@example.com';
+      const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'admin123';
+      const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+      await User.create({
+        email: defaultEmail,
+        password_hash: hashedPassword
+      });
+      logger.info(`Default admin user created: ${defaultEmail}`);
+    }
 
     // Initialize sync scheduler after database connection is established
     if (process.env.SYNC_ENABLED !== 'false') {

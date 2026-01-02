@@ -1,30 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import {
-    Box,
-    Typography,
-    Card,
-    CardContent,
-    Switch,
-    FormControlLabel,
-    Button,
-    TextField,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    List,
-    ListItem,
-    ListItemText,
-    ListItemSecondaryAction,
-    IconButton,
-    Divider,
-    Alert,
-    CircularProgress,
-    Grid,
-    Paper,
-    Collapse,
-    Tooltip
-} from '@mui/material';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Switch from '@mui/material/Switch';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Button from '@mui/material/Button';
+import TextField from '@mui/material/TextField';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemText from '@mui/material/ListItemText';
+import ListItemSecondaryAction from '@mui/material/ListItemSecondaryAction';
+import IconButton from '@mui/material/IconButton';
+import Divider from '@mui/material/Divider';
+import Alert from '@mui/material/Alert';
+import CircularProgress from '@mui/material/CircularProgress';
+import Grid from '@mui/material/Grid';
+import Paper from '@mui/material/Paper';
+import Collapse from '@mui/material/Collapse';
+import Tooltip from '@mui/material/Tooltip';
+import InputAdornment from '@mui/material/InputAdornment';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import KeyIcon from '@mui/icons-material/Key';
@@ -33,6 +34,8 @@ import HomeIcon from '@mui/icons-material/Home';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import EditIcon from '@mui/icons-material/Edit';
+import SaveIcon from '@mui/icons-material/Save';
+import { authFetch, setAdminToken as saveGlobalToken } from '../utils/api';
 
 const Settings = () => {
     const [properties, setProperties] = useState([]);
@@ -56,6 +59,15 @@ const Settings = () => {
     const [newMpName, setNewMpName] = useState('');
     const [newMpValue, setNewMpValue] = useState('');
 
+    // Security state
+    const [adminTokenInput, setAdminTokenInput] = useState(localStorage.getItem('admin_token') || '');
+    const [showToken, setShowToken] = useState(false);
+
+    const handleSaveToken = () => {
+        saveGlobalToken(adminTokenInput);
+        fetchProperties();
+    };
+
     useEffect(() => {
         fetchProperties();
     }, []);
@@ -63,7 +75,7 @@ const Settings = () => {
     const fetchProperties = async () => {
         setLoading(true);
         try {
-            const response = await fetch('/api/settings/properties');
+            const response = await authFetch('/api/settings/properties');
             if (!response.ok) throw new Error('Failed to fetch properties');
             const data = await response.json();
             setProperties(data);
@@ -88,9 +100,8 @@ const Settings = () => {
                 ? `/api/settings/properties/${editingProperty.id}`
                 : '/api/settings/properties';
 
-            const response = await fetch(url, {
+            const response = await authFetch(url, {
                 method,
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name: propName,
                     refresh_token: propToken,
@@ -146,9 +157,8 @@ const Settings = () => {
 
     const handleAddMp = async () => {
         try {
-            const response = await fetch(`/api/settings/properties/${activePropertyId}/metering-points`, {
+            const response = await authFetch(`/api/settings/properties/${activePropertyId}/metering-points`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name: newMpName,
                     meteringPointId: newMpValue
@@ -325,6 +335,45 @@ const Settings = () => {
                     ))}
                 </Grid>
             )}
+
+            <Card sx={{ mt: 4, borderRadius: 2 }}>
+                <CardContent>
+                    <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+                        <KeyIcon sx={{ mr: 1 }} />
+                        Security Settings
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Set your Admin Token to manage properties and trigger syncs. This is stored locally in your browser.
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                        <TextField
+                            size="small"
+                            label="Admin Token"
+                            type={showToken ? "text" : "password"}
+                            value={adminTokenInput}
+                            onChange={(e) => setAdminTokenInput(e.target.value)}
+                            sx={{ flexGrow: 1 }}
+                            InputProps={{
+                                endAdornment: (
+                                    <InputAdornment position="end">
+                                        <IconButton onClick={() => setShowToken(!showToken)} edge="end">
+                                            {showToken ? <VisibilityOff /> : <Visibility />}
+                                        </IconButton>
+                                    </InputAdornment>
+                                )
+                            }}
+                        />
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            startIcon={<SaveIcon />}
+                            onClick={handleSaveToken}
+                        >
+                            Save Token
+                        </Button>
+                    </Box>
+                </CardContent>
+            </Card>
 
             <Card sx={{ mt: 4, borderRadius: 2 }}>
                 <CardContent>

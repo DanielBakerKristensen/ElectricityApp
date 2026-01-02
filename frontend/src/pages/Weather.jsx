@@ -1,16 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import {
-    Box,
-    Card,
-    CardContent,
-    Grid,
-    Typography,
-    Button,
-    Alert,
-    CircularProgress,
-    Stack,
-    Chip
-} from '@mui/material';
+import Box from '@mui/material/Box';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Grid from '@mui/material/Grid';
+import Typography from '@mui/material/Typography';
+import Button from '@mui/material/Button';
+import Alert from '@mui/material/Alert';
+import CircularProgress from '@mui/material/CircularProgress';
+import Stack from '@mui/material/Stack';
+import Chip from '@mui/material/Chip';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -22,6 +20,7 @@ import WaterDropIcon from '@mui/icons-material/WaterDrop';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ElectricBoltIcon from '@mui/icons-material/ElectricBolt';
+import { authFetch } from '../utils/api';
 
 const WeatherSummaryCard = ({ title, value, subtitle, icon, color, trend }) => (
     <Card sx={{ height: '100%' }}>
@@ -86,7 +85,7 @@ const Weather = () => {
             const dateTo = formatDate(endDate);
 
             // Fetch consumption-temperature data
-            const dataResponse = await fetch(
+            const dataResponse = await authFetch(
                 `/api/weather/consumption-temperature?dateFrom=${dateFrom}&dateTo=${dateTo}`
             );
 
@@ -103,7 +102,7 @@ const Weather = () => {
             setWeatherData(dataResult);
 
             // Fetch correlation analysis
-            const correlationResponse = await fetch(
+            const correlationResponse = await authFetch(
                 `/api/weather/correlation?dateFrom=${dateFrom}&dateTo=${dateTo}`
             );
 

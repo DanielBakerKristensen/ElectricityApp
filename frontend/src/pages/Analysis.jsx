@@ -1,19 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import Chart from 'react-apexcharts';
-import {
-    Box,
-    Card,
-    CardContent,
-    Grid,
-    Typography,
-    Alert,
-    CircularProgress,
-    useTheme
-} from '@mui/material';
+import Box from '@mui/material/Box';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Grid from '@mui/material/Grid';
+import Typography from '@mui/material/Typography';
+import Alert from '@mui/material/Alert';
+import CircularProgress from '@mui/material/CircularProgress';
+import { useTheme } from '@mui/material/styles';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { getCandlestickOptions, getHorizontalBarOptions } from '../utils/chartConfig';
 import AnalysisToolbar from '../components/AnalysisToolbar';
+import { authFetch } from '../utils/api';
 
 const Analysis = () => {
     const theme = useTheme();
@@ -47,7 +46,7 @@ const Analysis = () => {
     useEffect(() => {
         const fetchProperties = async () => {
             try {
-                const response = await fetch('/api/settings/properties');
+                const response = await authFetch('/api/settings/properties');
                 if (response.ok) {
                     const data = await response.json();
                     setProperties(data);
@@ -111,7 +110,7 @@ const Analysis = () => {
             };
 
             const url = `/api/database-demo?dateFrom=${formatDate(startDate)}&dateTo=${formatDate(endDate)}&meteringPointId=${selectedMpId}`;
-            const response = await fetch(url);
+            const response = await authFetch(url);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const data = await response.json();
             setDbData(data);

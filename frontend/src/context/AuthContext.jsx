@@ -35,10 +35,65 @@ export const AuthProvider = ({ children }) => {
         if (response.ok) {
             const data = await response.json();
             setUser(data.user);
-            return { success: true };
+            return { success: true, user: data.user };
         } else {
             const data = await response.json();
             return { success: false, error: data.error || 'Login failed' };
+        }
+    };
+
+    const register = async ({ email, password, name }) => {
+        try {
+            const response = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password, name }),
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setUser(data.user);
+                return { success: true, user: data.user };
+            } else {
+                const data = await response.json();
+                return { success: false, error: data.error || 'Registration failed' };
+            }
+        } catch (error) {
+            return { success: false, error: error.message || 'Network error' };
+        }
+    };
+
+    const updateProfile = async (updates) => {
+        try {
+            const response = await fetch('/api/auth/profile', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates),
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setUser(data.user);
+                return { success: true, user: data.user };
+            } else {
+                const data = await response.json();
+                return { success: false, error: data.error || 'Update failed' };
+            }
+        } catch (error) {
+            return { success: false, error: error.message || 'Network error' };
+        }
+    };
+
+    const checkOnboardingStatus = async () => {
+        try {
+            const response = await fetch('/api/auth/onboarding-status');
+            if (response.ok) {
+                const data = await response.json();
+                return data.onboarding_completed;
+            }
+            return null;
+        } catch (error) {
+            return null;
         }
     };
 
@@ -48,7 +103,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, login, logout }}>
+        <AuthContext.Provider value={{ user, loading, login, register, updateProfile, checkOnboardingStatus, logout }}>
             {children}
         </AuthContext.Provider>
     );

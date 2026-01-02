@@ -8,6 +8,7 @@ import ApiIcon from '@mui/icons-material/Api';
 import CloudIcon from '@mui/icons-material/Cloud';
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import EditNoteIcon from '@mui/icons-material/EditNote';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { useAuth } from '../context/AuthContext';
 
@@ -41,6 +42,11 @@ const items = [
         href: '/api-demo',
         icon: <ApiIcon fontSize="small" />,
         title: 'API Demo'
+    },
+    {
+        href: '/profile',
+        icon: <AccountCircleIcon fontSize="small" />,
+        title: 'Profile'
     },
     {
         href: '/settings',

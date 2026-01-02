@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link as RouterLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
@@ -8,6 +8,7 @@ import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import Alert from '@mui/material/Alert';
+import Link from '@mui/material/Link';
 import CircularProgress from '@mui/material/CircularProgress';
 import ElectricBoltIcon from '@mui/icons-material/ElectricBolt';
 
@@ -128,6 +129,15 @@ const Login = () => {
                         >
                             Developer Bypass (Quick Access)
                         </Button>
+
+                        <Box sx={{ mt: 3, textAlign: 'center' }}>
+                            <Typography variant="body2" color="text.secondary">
+                                Don't have an account?{' '}
+                                <Link component={RouterLink} to="/register" underline="hover" sx={{ fontWeight: 'medium' }}>
+                                    Register here
+                                </Link>
+                            </Typography>
+                        </Box>
                     </form>
                 </CardContent>
             </Card>

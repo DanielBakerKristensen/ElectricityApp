@@ -18,6 +18,17 @@ const User = sequelize.define('User', {
     password_hash: {
         type: DataTypes.STRING,
         allowNull: false
+    },
+    name: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        comment: 'User display name'
+    },
+    onboarding_completed: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        comment: 'Tracks whether user has completed property setup wizard'
     }
 }, {
     tableName: 'users',

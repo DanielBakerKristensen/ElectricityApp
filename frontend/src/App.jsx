@@ -10,6 +10,9 @@ import Compare from './pages/Compare';
 // import Annotate from './pages/Annotate';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
+import Register from './pages/Register';
+import Profile from './pages/Profile';
+import Onboarding from './pages/Onboarding';
 import ApiDemo from './components/ApiDemo';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -23,6 +26,12 @@ function App() {
         <Router>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/onboarding" element={
+              <ProtectedRoute>
+                <Onboarding />
+              </ProtectedRoute>
+            } />
             <Route
               path="/*"
               element={
@@ -34,6 +43,7 @@ function App() {
                       <Route path="/weather" element={<Weather />} />
                       <Route path="/compare" element={<Compare />} />
                       <Route path="/settings" element={<Settings />} />
+                      <Route path="/profile" element={<Profile />} />
                       <Route path="/api-demo" element={<ApiDemo />} />
                     </Routes>
                   </DashboardLayout>

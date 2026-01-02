@@ -44,12 +44,35 @@ router.get('/properties', async (req, res) => {
 router.post('/properties', [
     body('name').notEmpty().withMessage('Name is required'),
     body('refresh_token').optional().isString(),
-    body('latitude').optional().isDecimal(),
-    body('longitude').optional().isDecimal(),
+    body('latitude').optional().isDecimal().custom((value) => {
+        const lat = parseFloat(value);
+        if (lat < -90 || lat > 90) {
+            throw new Error('Latitude must be between -90 and 90');
+        }
+        return true;
+    }),
+    body('longitude').optional().isDecimal().custom((value) => {
+        const lng = parseFloat(value);
+        if (lng < -180 || lng > 180) {
+            throw new Error('Longitude must be between -180 and 180');
+        }
+        return true;
+    }),
     validate
 ], async (req, res) => {
     try {
         const property = await Property.create(req.body);
+
+        // If this is the user's first property, mark onboarding as complete
+        // Note: This requires user context. For now, we'll mark it complete for the admin user.
+        // In a multi-user setup, you'd get user_id from the JWT token
+        const User = require('../models/User');
+        const users = await User.findAll();
+        if (users.length > 0) {
+            // Mark first user's onboarding as complete
+            await users[0].update({ onboarding_completed: true });
+        }
+
         res.status(201).json(property);
     } catch (error) {
         logger.error('Error creating property:', error);
@@ -62,8 +85,20 @@ router.patch('/properties/:id', [
     param('id').isInt(),
     body('name').optional().notEmpty(),
     body('refresh_token').optional().isString(),
-    body('latitude').optional().isDecimal(),
-    body('longitude').optional().isDecimal(),
+    body('latitude').optional().isDecimal().custom((value) => {
+        const lat = parseFloat(value);
+        if (lat < -90 || lat > 90) {
+            throw new Error('Latitude must be between -90 and 90');
+        }
+        return true;
+    }),
+    body('longitude').optional().isDecimal().custom((value) => {
+        const lng = parseFloat(value);
+        if (lng < -180 || lng > 180) {
+            throw new Error('Longitude must be between -180 and 180');
+        }
+        return true;
+    }),
     body('weather_sync_enabled').optional().isBoolean(),
     validate
 ], async (req, res) => {

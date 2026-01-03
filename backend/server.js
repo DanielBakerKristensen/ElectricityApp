@@ -39,7 +39,7 @@ const app = express();
 app.set('trust proxy', 1);
 
 const corsOptions = {
-  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://frontend:3000'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
@@ -109,6 +109,7 @@ app.use('/api/auth', require('./routes/auth-routes'));
 app.use('/api/sync', syncRoutes);
 app.use('/api/weather', require('./routes/weather-routes'));
 app.use('/api', require('./routes/electricity-routes'));
+app.use('/api', require('./routes/health-routes'));
 console.log('--- STARTUP BREADCRUMB: POST-ROUTES ---');
 
 require('./models/RefreshToken');

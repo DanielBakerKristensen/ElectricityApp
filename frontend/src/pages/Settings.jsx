@@ -28,14 +28,14 @@ import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
-import KeyIcon from '@mui/icons-material/Key';
+
 import ElectricMeterIcon from '@mui/icons-material/ElectricMeter';
 import HomeIcon from '@mui/icons-material/Home';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
-import { authFetch, setAdminToken as saveGlobalToken } from '../utils/api';
+import { authFetch } from '../utils/api';
 
 const Settings = () => {
     const [properties, setProperties] = useState([]);
@@ -58,15 +58,6 @@ const Settings = () => {
 
     const [newMpName, setNewMpName] = useState('');
     const [newMpValue, setNewMpValue] = useState('');
-
-    // Security state
-    const [adminTokenInput, setAdminTokenInput] = useState(localStorage.getItem('admin_token') || '');
-    const [showToken, setShowToken] = useState(false);
-
-    const handleSaveToken = () => {
-        saveGlobalToken(adminTokenInput);
-        fetchProperties();
-    };
 
     useEffect(() => {
         fetchProperties();
@@ -336,44 +327,7 @@ const Settings = () => {
                 </Grid>
             )}
 
-            <Card sx={{ mt: 4, borderRadius: 2 }}>
-                <CardContent>
-                    <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
-                        <KeyIcon sx={{ mr: 1 }} />
-                        Security Settings
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        Set your Admin Token to manage properties and trigger syncs. This is stored locally in your browser.
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                        <TextField
-                            size="small"
-                            label="Admin Token"
-                            type={showToken ? "text" : "password"}
-                            value={adminTokenInput}
-                            onChange={(e) => setAdminTokenInput(e.target.value)}
-                            sx={{ flexGrow: 1 }}
-                            InputProps={{
-                                endAdornment: (
-                                    <InputAdornment position="end">
-                                        <IconButton onClick={() => setShowToken(!showToken)} edge="end">
-                                            {showToken ? <VisibilityOff /> : <Visibility />}
-                                        </IconButton>
-                                    </InputAdornment>
-                                )
-                            }}
-                        />
-                        <Button
-                            variant="contained"
-                            color="primary"
-                            startIcon={<SaveIcon />}
-                            onClick={handleSaveToken}
-                        >
-                            Save Token
-                        </Button>
-                    </Box>
-                </CardContent>
-            </Card>
+
 
             <Card sx={{ mt: 4, borderRadius: 2 }}>
                 <CardContent>

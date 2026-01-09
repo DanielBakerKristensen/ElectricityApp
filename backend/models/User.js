@@ -29,6 +29,12 @@ const User = sequelize.define('User', {
         allowNull: false,
         defaultValue: false,
         comment: 'Tracks whether user has completed property setup wizard'
+    },
+    is_admin: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        comment: 'Administrative privileges'
     }
 }, {
     tableName: 'users',

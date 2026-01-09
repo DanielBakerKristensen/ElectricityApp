@@ -104,10 +104,12 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 
 console.log('--- STARTUP BREADCRUMB: PRE-ROUTES ---');
 const { router: syncRoutes, adminAuth } = require('./routes/sync-routes');
+app.use('/api/admin', require('./routes/admin-routes'));
 app.use('/api/settings', require('./routes/settings-routes'));
 app.use('/api/auth', require('./routes/auth-routes'));
 app.use('/api/sync', syncRoutes);
 app.use('/api/weather', require('./routes/weather-routes'));
+app.use('/api/analytics', require('./routes/analytics-routes'));
 app.use('/api', require('./routes/electricity-routes'));
 app.use('/api', require('./routes/health-routes'));
 console.log('--- STARTUP BREADCRUMB: POST-ROUTES ---');

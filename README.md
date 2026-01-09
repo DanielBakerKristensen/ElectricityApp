@@ -81,6 +81,7 @@ The application includes an automated daily sync feature. Configure via environm
 
 ## Documentation
 
+- [Development Guide](DEVELOPMENT.md) - **Read this before contributing!** Includes Docker workflow details.
 - [Frontend Stability Guide](docs/FRONTEND-STABILITY.md)
 
 ## Ports

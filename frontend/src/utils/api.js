@@ -2,23 +2,15 @@
  * Utility to handle authenticated API requests
  */
 
-const getAdminToken = () => localStorage.getItem('admin_token');
-
-export const setAdminToken = (token) => {
-    if (token) localStorage.setItem('admin_token', token);
-    else localStorage.removeItem('admin_token');
-};
-
 export const authFetch = async (url, options = {}) => {
-    const token = getAdminToken();
+    // const token = getAdminToken(); // Legacy - removed
     const headers = {
         ...options.headers,
         'Content-Type': 'application/json',
     };
 
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-    }
+    // Note: The browser automatically sends HTTP-only cookies (auth_token) for our session.
+    // Explicit Authorization header is no longer needed for normal user actions.
 
     const response = await fetch(url, {
         ...options,

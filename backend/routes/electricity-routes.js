@@ -2,8 +2,8 @@ const express = require('express');
 const axios = require('axios');
 const { QueryTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
-const { Property, MeteringPoint } = require('../models');
-const { adminAuth } = require('./sync-routes');
+const { Property, MeteringPoint, User } = require('../models');
+const { userAuth } = require('../utils/auth-middleware');
 const router = express.Router();
 
 const ELOVERBLIK_BASE_URL = 'https://api.eloverblik.dk/customerapi/api';
@@ -117,7 +117,7 @@ function formatForFrontend(dbResults) {
  *       200:
  *         description: Successfully retrieved consumption data
  */
-router.get('/test-data', adminAuth, async (req, res) => {
+router.get('/test-data', userAuth, async (req, res) => {
     const { dateFrom, dateTo, propertyId, meteringPointId: dbMpId } = req.query;
 
     if (!dateFrom || !dateTo) {
@@ -127,16 +127,25 @@ router.get('/test-data', adminAuth, async (req, res) => {
     try {
         let refreshToken;
         let meteringPointId;
+        const user = await User.findByPk(req.user.id);
 
         // 1. Resolve Metering Point and Property
         if (dbMpId) {
             const mpDoc = await MeteringPoint.findByPk(dbMpId, { include: ['property'] });
             if (!mpDoc) return res.status(404).json({ error: 'Metering Point not found' });
 
+            // Check ownership
+            const hasProperty = await user.hasProperty(mpDoc.property_id);
+            if (!hasProperty) return res.status(404).json({ error: 'Metering Point not found' });
+
             meteringPointId = mpDoc.meteringPointId.trim();
             refreshToken = mpDoc.property?.refresh_token;
             console.log(`🔌 Using metering point: ${mpDoc.name} (${meteringPointId})`);
         } else if (propertyId) {
+            // Check ownership
+            const hasProperty = await user.hasProperty(propertyId);
+            if (!hasProperty) return res.status(404).json({ error: 'Property not found' });
+
             const prop = await Property.findByPk(propertyId, { include: ['meteringPoints'] });
             if (!prop) return res.status(404).json({ error: 'Property not found' });
 
@@ -145,8 +154,12 @@ router.get('/test-data', adminAuth, async (req, res) => {
                 meteringPointId = prop.meteringPoints[0].meteringPointId.trim();
             }
         } else {
-            // Default to first property/meter if none specified
-            const defaultProp = await Property.findOne({ include: ['meteringPoints'] });
+            // Default to first property belonging to user
+            const properties = await user.getProperties({
+                include: ['meteringPoints']
+            });
+
+            const defaultProp = properties.length > 0 ? properties[0] : null;
             if (!defaultProp || !defaultProp.meteringPoints?.length) {
                 return res.status(400).json({ error: 'No properties/metering points configured in database' });
             }
@@ -214,7 +227,7 @@ router.get('/test-data', adminAuth, async (req, res) => {
  *       200:
  *         description: Successfully retrieved consumption data
  */
-router.get('/database-demo', adminAuth, async (req, res) => {
+router.get('/database-demo', userAuth, async (req, res) => {
     const { dateFrom, dateTo, meteringPointId: dbMpId } = req.query;
 
     if (!dateFrom || !dateTo) {
@@ -223,14 +236,28 @@ router.get('/database-demo', adminAuth, async (req, res) => {
 
     try {
         let actualMpId;
+        const user = await User.findByPk(req.user.id);
 
         if (dbMpId) {
             const mp = await MeteringPoint.findByPk(dbMpId);
             if (!mp) return res.status(404).json({ error: 'Metering point not found' });
+
+            // Check ownership
+            const hasProperty = await user.hasProperty(mp.property_id);
+            if (!hasProperty) return res.status(404).json({ error: 'Metering point not found' });
+
             actualMpId = mp.meteringPointId.trim();
         } else {
-            // Default to first metering point
-            const defaultMp = await MeteringPoint.findOne();
+            // Default to first metering point of first property of user
+            const properties = await user.getProperties({
+                include: ['meteringPoints']
+            });
+
+            // Flatten metering points
+            let defaultMp = null;
+            if (properties.length > 0 && properties[0].meteringPoints && properties[0].meteringPoints.length > 0) {
+                defaultMp = properties[0].meteringPoints[0];
+            }
             if (!defaultMp) return res.status(400).json({ error: 'No metering points configured in database' });
             actualMpId = defaultMp.meteringPointId.trim();
         }

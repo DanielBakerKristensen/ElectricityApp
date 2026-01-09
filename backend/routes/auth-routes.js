@@ -51,7 +51,7 @@ router.post('/login', async (req, res) => {
         }
 
         const token = jwt.sign(
-            { id: user.id, email: user.email },
+            { id: user.id, email: user.email, is_admin: user.is_admin },
             JWT_SECRET,
             { expiresIn: JWT_EXPIRES_IN }
         );
@@ -69,7 +69,8 @@ router.post('/login', async (req, res) => {
                 id: user.id,
                 email: user.email,
                 name: user.name,
-                onboarding_completed: user.onboarding_completed
+                onboarding_completed: user.onboarding_completed,
+                is_admin: user.is_admin
             }
         });
 
@@ -131,7 +132,7 @@ router.post('/register', async (req, res) => {
 
         // Auto-login after registration by creating JWT
         const token = jwt.sign(
-            { id: user.id, email: user.email },
+            { id: user.id, email: user.email, is_admin: user.is_admin },
             JWT_SECRET,
             { expiresIn: JWT_EXPIRES_IN }
         );
@@ -149,7 +150,8 @@ router.post('/register', async (req, res) => {
                 id: user.id,
                 email: user.email,
                 name: user.name,
-                onboarding_completed: user.onboarding_completed
+                onboarding_completed: user.onboarding_completed,
+                is_admin: user.is_admin
             }
         });
 
@@ -236,7 +238,8 @@ router.put('/profile', async (req, res) => {
                 id: user.id,
                 email: user.email,
                 name: user.name,
-                onboarding_completed: user.onboarding_completed
+                onboarding_completed: user.onboarding_completed,
+                is_admin: user.is_admin
             }
         });
 
@@ -270,7 +273,7 @@ router.get('/onboarding-status', async (req, res) => {
 
         const decoded = jwt.verify(token, JWT_SECRET);
         const user = await User.findByPk(decoded.id, {
-            attributes: ['id', 'email', 'name', 'onboarding_completed']
+            attributes: ['id', 'email', 'name', 'onboarding_completed', 'is_admin']
         });
 
         if (!user) {
@@ -309,7 +312,7 @@ router.get('/verify', async (req, res) => {
 
         const decoded = jwt.verify(token, JWT_SECRET);
         const user = await User.findByPk(decoded.id, {
-            attributes: ['id', 'email', 'name', 'onboarding_completed']
+            attributes: ['id', 'email', 'name', 'onboarding_completed', 'is_admin']
         });
 
         if (!user) {
@@ -322,7 +325,8 @@ router.get('/verify', async (req, res) => {
                 id: user.id,
                 email: user.email,
                 name: user.name,
-                onboarding_completed: user.onboarding_completed
+                onboarding_completed: user.onboarding_completed,
+                is_admin: user.is_admin
             }
         });
 

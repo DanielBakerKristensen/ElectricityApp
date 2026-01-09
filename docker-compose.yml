@@ -115,6 +115,17 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Cloudflare Tunnel
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: electricity-tunnel
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    networks:
+      - electricity-network
+
 networks:
   electricity-network:
     driver: bridge

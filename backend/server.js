@@ -110,6 +110,7 @@ app.use('/api/auth', require('./routes/auth-routes'));
 app.use('/api/sync', syncRoutes);
 app.use('/api/weather', require('./routes/weather-routes'));
 app.use('/api/analytics', require('./routes/analytics-routes'));
+app.use('/api/annotations', require('./routes/annotation-routes'));
 app.use('/api', require('./routes/electricity-routes'));
 app.use('/api', require('./routes/health-routes'));
 console.log('--- STARTUP BREADCRUMB: POST-ROUTES ---');

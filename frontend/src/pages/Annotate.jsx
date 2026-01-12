@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Box,
     Card,
@@ -18,7 +18,8 @@ import {
     Dialog,
     DialogTitle,
     DialogContent,
-    DialogActions
+    DialogActions,
+    CircularProgress
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -30,6 +31,9 @@ import EventIcon from '@mui/icons-material/Event';
 import HomeIcon from '@mui/icons-material/Home';
 import DevicesIcon from '@mui/icons-material/Devices';
 import CloudIcon from '@mui/icons-material/Cloud';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import { authFetch } from '../utils/api';
+import { useProperty } from '../context/PropertyContext';
 
 const AnnotationCard = ({ annotation, onEdit, onDelete }) => {
     const getCategoryIcon = (category) => {
@@ -92,25 +96,9 @@ const AnnotationCard = ({ annotation, onEdit, onDelete }) => {
 };
 
 const Annotate = () => {
-    const [annotations, setAnnotations] = useState([
-        {
-            id: 1,
-            title: 'Family Visit',
-            description: 'Extended family stayed for the weekend, increased heating and cooking usage.',
-            category: 'guests',
-            date: '2024-12-15',
-            dateRange: false
-        },
-        {
-            id: 2,
-            title: 'New Dishwasher',
-            description: 'Installed energy-efficient dishwasher, should see reduction in consumption.',
-            category: 'appliance',
-            date: '2024-12-10',
-            dateRange: false
-        }
-    ]);
-
+    const [annotations, setAnnotations] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editingAnnotation, setEditingAnnotation] = useState(null);
     const [formData, setFormData] = useState({
@@ -120,6 +108,46 @@ const Annotate = () => {
         date: new Date(),
         dateRange: false
     });
+
+    const { selectedMeetingPoint, loading: contextLoading } = useProperty();
+
+    // Fetch annotations when metering point changes
+    useEffect(() => {
+        if (selectedMeetingPoint) {
+            fetchAnnotations();
+        } else {
+            setAnnotations([]);
+        }
+    }, [selectedMeetingPoint]);
+
+    const fetchAnnotations = async () => {
+        if (!selectedMeetingPoint) return;
+
+        setLoading(true);
+        setError(null);
+
+        try {
+            const response = await authFetch(
+                `/api/annotations?meteringPointId=${selectedMeetingPoint.id}`
+            );
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            if (data.success) {
+                setAnnotations(data.annotations || []);
+            } else {
+                throw new Error(data.error || 'Failed to fetch annotations');
+            }
+        } catch (err) {
+            console.error('Error fetching annotations:', err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleAddAnnotation = () => {
         setEditingAnnotation(null);
@@ -145,27 +173,85 @@ const Annotate = () => {
         setDialogOpen(true);
     };
 
-    const handleSaveAnnotation = () => {
-        const newAnnotation = {
-            id: editingAnnotation ? editingAnnotation.id : Date.now(),
-            title: formData.title,
-            description: formData.description,
-            category: formData.category,
-            date: formData.date.toISOString().split('T')[0],
-            dateRange: formData.dateRange
-        };
-
-        if (editingAnnotation) {
-            setAnnotations(annotations.map(a => a.id === editingAnnotation.id ? newAnnotation : a));
-        } else {
-            setAnnotations([...annotations, newAnnotation]);
+    const handleSaveAnnotation = async () => {
+        if (!selectedMeetingPoint) {
+            setError('Please select a metering point');
+            return;
         }
 
-        setDialogOpen(false);
+        setLoading(true);
+        setError(null);
+
+        try {
+            const payload = {
+                title: formData.title,
+                description: formData.description,
+                category: formData.category,
+                date: formData.date.toISOString().split('T')[0],
+                dateRange: formData.dateRange,
+                meteringPointId: selectedMeetingPoint.id
+            };
+
+            const method = editingAnnotation ? 'PUT' : 'POST';
+            const endpoint = editingAnnotation 
+                ? `/api/annotations/${editingAnnotation.id}`
+                : '/api/annotations';
+
+            const response = await authFetch(endpoint, {
+                method,
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to save annotation');
+            }
+
+            // Refresh annotations list
+            await fetchAnnotations();
+            setDialogOpen(false);
+        } catch (err) {
+            console.error('Error saving annotation:', err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const handleDeleteAnnotation = (id) => {
-        setAnnotations(annotations.filter(a => a.id !== id));
+    const handleDeleteAnnotation = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this annotation?')) {
+            return;
+        }
+
+        setLoading(true);
+        setError(null);
+
+        try {
+            const response = await authFetch(`/api/annotations/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to delete annotation');
+            }
+
+            // Refresh annotations list
+            await fetchAnnotations();
+        } catch (err) {
+            console.error('Error deleting annotation:', err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
     };
     return (
         <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -180,25 +266,64 @@ const Annotate = () => {
                 </Box>
 
                 <Alert severity="info" sx={{ mb: 3 }}>
-                    Annotation features are in development. This page will allow you to add contextual notes to specific dates or periods in your consumption data.
+                    Annotations are stored per metering point. Select a metering point to view and manage annotations.
                 </Alert>
+
+                {error && (
+                    <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+                        {error}
+                    </Alert>
+                )}
 
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                     <Typography variant="h6">
                         Your Annotations ({annotations.length})
                     </Typography>
-                    <Button
-                        variant="contained"
-                        startIcon={<AddIcon />}
-                        onClick={handleAddAnnotation}
-                    >
-                        Add Annotation
-                    </Button>
+                    <Stack direction="row" spacing={1}>
+                        <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={loading ? <CircularProgress size={16} /> : <RefreshIcon />}
+                            onClick={fetchAnnotations}
+                            disabled={loading || contextLoading || !selectedMeetingPoint}
+                        >
+                            Refresh
+                        </Button>
+                        <Button
+                            variant="contained"
+                            startIcon={<AddIcon />}
+                            onClick={handleAddAnnotation}
+                            disabled={!selectedMeetingPoint}
+                        >
+                            Add Annotation
+                        </Button>
+                    </Stack>
                 </Box>
 
                 <Grid container spacing={3}>
                     <Grid item xs={12}>
-                        {annotations.length === 0 ? (
+                        {loading ? (
+                            <Box sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>
+                                <CircularProgress sx={{ mb: 2 }} />
+                                <Typography variant="h6" gutterBottom>
+                                    Loading Annotations...
+                                </Typography>
+                            </Box>
+                        ) : !selectedMeetingPoint ? (
+                            <Card>
+                                <CardContent>
+                                    <Box sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>
+                                        <EditNoteIcon sx={{ fontSize: 64, mb: 2, opacity: 0.3 }} />
+                                        <Typography variant="h6" gutterBottom>
+                                            No Metering Point Selected
+                                        </Typography>
+                                        <Typography variant="body2">
+                                            Please select a metering point from the header to view and manage annotations.
+                                        </Typography>
+                                    </Box>
+                                </CardContent>
+                            </Card>
+                        ) : annotations.length === 0 ? (
                             <Card>
                                 <CardContent>
                                     <Box sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>

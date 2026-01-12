@@ -35,6 +35,16 @@ const User = sequelize.define('User', {
         allowNull: false,
         defaultValue: false,
         comment: 'Administrative privileges'
+    },
+    defaultPropertyId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        comment: 'Default selected property ID'
+    },
+    defaultMeetingPointId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        comment: 'Default selected metering point ID'
     }
 }, {
     tableName: 'users',

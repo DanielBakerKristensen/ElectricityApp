@@ -3,6 +3,7 @@ import { AppBar, Toolbar, Typography, IconButton, Box, Avatar } from '@mui/mater
 import MenuIcon from '@mui/icons-material/Menu';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import BoltIcon from '@mui/icons-material/Bolt';
+import PropertySelector from './PropertySelector';
 
 const TopBar = ({ onSidebarOpen }) => {
     return (
@@ -33,6 +34,10 @@ const TopBar = ({ onSidebarOpen }) => {
                 >
                     Electricity App
                 </Typography>
+
+                <Box sx={{ mr: 2, display: { xs: 'none', md: 'block' } }}>
+                    <PropertySelector />
+                </Box>
 
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <IconButton color="inherit">

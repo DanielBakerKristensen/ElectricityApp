@@ -30,8 +30,11 @@ import {
     ArrowBack,
     ArrowForward,
     DeleteOutline,
-    AddCircle
+    AddCircle,
+    Refresh,
+    Warning
 } from '@mui/icons-material';
+import { CircularProgress, Checkbox } from '@mui/material';
 import { authFetch } from '../utils/api';
 
 const steps = ['Welcome', 'Property Info', 'El-overblik Token', 'Metering Points', 'Coordinates', 'Review'];
@@ -51,6 +54,11 @@ const PropertyWizard = ({ onComplete, onSkip }) => {
         meteringPoints: [{ name: '', meteringPointId: '' }]
     });
 
+    const [isValidating, setIsValidating] = useState(false);
+    const [discoveredMeteringPoints, setDiscoveredMeteringPoints] = useState([]);
+    const [tokenValidated, setTokenValidated] = useState(false);
+    const [validationResult, setValidationResult] = useState(null);
+
     const handleNext = () => {
         setError('');
 
@@ -65,6 +73,10 @@ const PropertyWizard = ({ onComplete, onSkip }) => {
         if (activeStep === 2) {
             if (!propertyData.refreshToken.trim()) {
                 setError('El-overblik refresh token is required');
+                return;
+            }
+            if (!tokenValidated) {
+                setError('Please validate your token before proceeding');
                 return;
             }
         }
@@ -108,6 +120,46 @@ const PropertyWizard = ({ onComplete, onSkip }) => {
         newPoints[index][field] = value;
         setPropertyData({ ...propertyData, meteringPoints: newPoints });
         setError('');
+    };
+
+    const handleValidateToken = async () => {
+        if (!propertyData.refreshToken.trim()) {
+            setError('Please enter a refresh token');
+            return;
+        }
+
+        setIsValidating(true);
+        setError('');
+        try {
+            const response = await authFetch('/api/settings/validate-token', {
+                method: 'POST',
+                body: JSON.stringify({ refresh_token: propertyData.refreshToken })
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Failed to validate token');
+            }
+
+            const points = await response.json();
+            setValidationResult(points);
+            setDiscoveredMeteringPoints(points.result || []);
+            setTokenValidated(true);
+
+            // Automatically populate metering points if discovered
+            if (points && points.result && points.result.length > 0) {
+                const newPoints = points.result.map(p => ({
+                    name: p.type === 'E17' ? 'Consumption' : (p.type === 'E18' ? 'Production' : 'Meter'),
+                    meteringPointId: p.meteringPointId
+                }));
+                setPropertyData(prev => ({ ...prev, meteringPoints: newPoints }));
+            }
+        } catch (err) {
+            setError(err.message);
+            setTokenValidated(false);
+        } finally {
+            setIsValidating(false);
+        }
     };
 
     const addMeteringPoint = () => {
@@ -165,6 +217,16 @@ const PropertyWizard = ({ onComplete, onSkip }) => {
                 if (!mpResponse.ok) {
                     console.error('Failed to add metering point:', mp);
                 }
+            }
+
+            // Trigger initial 7-day sync
+            try {
+                await authFetch(`/api/settings/properties/${property.id}/sync-initial`, {
+                    method: 'POST'
+                });
+            } catch (syncErr) {
+                console.error('Failed to trigger initial sync:', syncErr);
+                // We don't block the wizard completion for background sync failure
             }
 
             // Call completion callback 
@@ -301,18 +363,48 @@ const PropertyWizard = ({ onComplete, onSkip }) => {
                                 </ListItem>
                             </List>
                         </Alert>
-                        <TextField
-                            fullWidth
-                            required
-                            label="Refresh Token"
-                            placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                            value={propertyData.refreshToken}
-                            onChange={(e) => handleChange('refreshToken', e.target.value)}
-                            multiline
-                            rows={3}
-                            margin="normal"
-                            helperText="Paste your el-overblik refresh token here"
-                        />
+                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                            <TextField
+                                fullWidth
+                                required
+                                label="Refresh Token"
+                                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                                value={propertyData.refreshToken}
+                                onChange={(e) => {
+                                    handleChange('refreshToken', e.target.value);
+                                    setTokenValidated(false);
+                                }}
+                                multiline
+                                rows={3}
+                                margin="normal"
+                                helperText="Paste your el-overblik refresh token here"
+                                error={!!error && !tokenValidated}
+                            />
+                            <Button
+                                variant="outlined"
+                                onClick={handleValidateToken}
+                                disabled={isValidating || !propertyData.refreshToken.trim()}
+                                sx={{ mt: 2, py: 1.5, minWidth: 120 }}
+                                startIcon={isValidating ? <CircularProgress size={20} /> : (tokenValidated ? <CheckCircle color="success" /> : <Key />)}
+                            >
+                                {isValidating ? 'Validating...' : (tokenValidated ? 'Validated' : 'Validate')}
+                            </Button>
+                        </Box>
+                        {tokenValidated && validationResult && (
+                            <Alert severity="success" sx={{ mt: 2 }}>
+                                Token valid! Found {validationResult.result.length} metering point(s).
+                                <List dense>
+                                    {validationResult.result.map((mp, index) => (
+                                        <ListItem key={index}>
+                                            <ListItemText
+                                                primary={`Metering Point: ${mp.meteringPointId}`}
+                                                secondary={`Consumer: ${mp.consumerCVR || 'N/A'} - ${mp.firstConsumerPartyName || 'N/A'}`}
+                                            />
+                                        </ListItem>
+                                    ))}
+                                </List>
+                            </Alert>
+                        )}
                     </Box>
                 );
 
@@ -324,46 +416,57 @@ const PropertyWizard = ({ onComplete, onSkip }) => {
                         </Typography>
                         <Alert severity="info" sx={{ mb: 3 }}>
                             <Typography variant="body2">
-                                Your metering point ID is an 18-digit number found on your electricity bill or in el-overblik.dk
+                                {discoveredMeteringPoints.length > 0
+                                    ? `We found ${discoveredMeteringPoints.length} metering point(s) associated with your token. You can edit them below or add more manually.`
+                                    : 'Your metering point ID is an 18-digit number found on your electricity bill or in el-overblik.dk'}
                             </Typography>
                         </Alert>
                         {propertyData.meteringPoints.map((mp, index) => (
-                            <Paper key={index} variant="outlined" sx={{ p: 2, mb: 2 }}>
+                            <Paper key={index} variant="outlined" sx={{ p: 2, mb: 2, borderColor: mp.meteringPointId.length === 18 ? 'success.light' : 'divider' }}>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                                    <Typography variant="subtitle2">
-                                        Meter #{index + 1}
-                                    </Typography>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        <Typography variant="subtitle2">
+                                            Meter #{index + 1}
+                                        </Typography>
+                                        {mp.meteringPointId.length === 18 && <CheckCircle color="success" sx={{ fontSize: 16 }} />}
+                                    </Box>
                                     {propertyData.meteringPoints.length > 1 && (
                                         <IconButton size="small" onClick={() => removeMeteringPoint(index)} color="error">
                                             <DeleteOutline />
                                         </IconButton>
                                     )}
                                 </Box>
-                                <TextField
-                                    fullWidth
-                                    label="Meter Name (Optional)"
-                                    placeholder="e.g., Main Kitchen, Garage"
-                                    value={mp.name}
-                                    onChange={(e) => handleMeteringPointChange(index, 'name', e.target.value)}
-                                    margin="dense"
-                                    size="small"
-                                />
-                                <TextField
-                                    fullWidth
-                                    required
-                                    label="18-digit Metering Point ID"
-                                    placeholder="571313174012345678"
-                                    value={mp.meteringPointId}
-                                    onChange={(e) => {
-                                        const value = e.target.value.replace(/\D/g, '').slice(0, 18);
-                                        handleMeteringPointChange(index, 'meteringPointId', value);
-                                    }}
-                                    margin="dense"
-                                    size="small"
-                                    error={mp.meteringPointId && mp.meteringPointId.length !== 18}
-                                    helperText={mp.meteringPointId && mp.meteringPointId.length !== 18 ? `${mp.meteringPointId.length}/18 digits` : '18 digits required'}
-                                    inputProps={{ maxLength: 18 }}
-                                />
+                                <Grid container spacing={2}>
+                                    <Grid item xs={12} sm={4}>
+                                        <TextField
+                                            fullWidth
+                                            label="Name"
+                                            placeholder="e.g., Main Kitchen"
+                                            value={mp.name}
+                                            onChange={(e) => handleMeteringPointChange(index, 'name', e.target.value)}
+                                            margin="dense"
+                                            size="small"
+                                        />
+                                    </Grid>
+                                    <Grid item xs={12} sm={8}>
+                                        <TextField
+                                            fullWidth
+                                            required
+                                            label="18-digit Metering Point ID"
+                                            placeholder="571313174012345678"
+                                            value={mp.meteringPointId}
+                                            onChange={(e) => {
+                                                const value = e.target.value.replace(/\D/g, '').slice(0, 18);
+                                                handleMeteringPointChange(index, 'meteringPointId', value);
+                                            }}
+                                            margin="dense"
+                                            size="small"
+                                            error={mp.meteringPointId && mp.meteringPointId.length !== 18}
+                                            helperText={mp.meteringPointId && mp.meteringPointId.length !== 18 ? `${mp.meteringPointId.length}/18 digits` : '18 digits required'}
+                                            inputProps={{ maxLength: 18 }}
+                                        />
+                                    </Grid>
+                                </Grid>
                             </Paper>
                         ))}
                         <Button
@@ -371,8 +474,9 @@ const PropertyWizard = ({ onComplete, onSkip }) => {
                             onClick={addMeteringPoint}
                             variant="outlined"
                             fullWidth
+                            sx={{ mt: 1 }}
                         >
-                            Add Another Meter
+                            Add Another Meter Manually
                         </Button>
                     </Box>
                 );

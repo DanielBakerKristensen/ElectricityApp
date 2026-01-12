@@ -98,6 +98,39 @@ class EloverblikService {
             throw error;
         }
     }
+
+    async getMeteringPoints(refreshToken) {
+        try {
+            const accessToken = await this.getAccessToken(refreshToken);
+
+            logger.info('Fetching metering points from Eloverblik');
+            const response = await axios.get(`${ELOVERBLIK_BASE_URL}/meteringpoints/meteringpoints`, {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Accept': 'application/json'
+                }
+            });
+
+            logger.info('Successfully fetched metering points', {
+                count: response.data?.result?.length || 0
+            });
+
+            return response.data.result;
+        } catch (error) {
+            logger.error('Error fetching metering points:', {
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                data: error.response?.data,
+                message: error.message
+            });
+
+            if (error.response?.status === 401) {
+                this.tokens.delete(refreshToken);
+            }
+
+            throw new Error('Failed to fetch metering points from Eloverblik');
+        }
+    }
 }
 
 module.exports = new EloverblikService();

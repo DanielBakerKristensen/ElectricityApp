@@ -15,6 +15,7 @@ import Onboarding from './pages/Onboarding';
 import AdminDashboard from './pages/AdminDashboard';
 import ApiDemo from './components/ApiDemo';
 import { AuthProvider } from './context/AuthContext';
+import { PropertyProvider } from './context/PropertyContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import './App.css';
 
@@ -32,13 +33,13 @@ function App() {
                 <Onboarding />
               </ProtectedRoute>
             } />
-            <Route
-              element={
-                <ProtectedRoute>
+            <Route element={
+              <ProtectedRoute>
+                <PropertyProvider>
                   <DashboardLayout />
-                </ProtectedRoute>
-              }
-            >
+                </PropertyProvider>
+              </ProtectedRoute>
+            }>
               <Route path="/" element={<Dashboard />} />
               <Route path="/analysis" element={<Analysis />} />
               <Route path="/weather" element={<Weather />} />
@@ -52,7 +53,7 @@ function App() {
           </Routes>
         </Router>
       </AuthProvider>
-    </ThemeProvider>
+    </ThemeProvider >
   );
 }
 

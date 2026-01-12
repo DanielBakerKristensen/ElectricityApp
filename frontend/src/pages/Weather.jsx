@@ -21,6 +21,7 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ElectricBoltIcon from '@mui/icons-material/ElectricBolt';
 import { authFetch } from '../utils/api';
+import { useProperty } from '../context/PropertyContext';
 
 const WeatherSummaryCard = ({ title, value, subtitle, icon, color, trend }) => (
     <Card sx={{ height: '100%' }}>
@@ -55,6 +56,8 @@ const Weather = () => {
     const [correlationData, setCorrelationData] = useState(null);
     const [error, setError] = useState(null);
 
+    const { selectedMeetingPoint } = useProperty();
+
     // Date range state
     const [startDate, setStartDate] = useState(() => {
         const date = new Date();
@@ -77,6 +80,11 @@ const Weather = () => {
 
     // Fetch weather and consumption data
     const fetchWeatherData = async () => {
+        if (!selectedMeetingPoint) {
+            setError("Please select a metering point");
+            return;
+        }
+
         setLoading(true);
         setError(null);
 
@@ -86,7 +94,7 @@ const Weather = () => {
 
             // Fetch consumption-temperature data
             const dataResponse = await authFetch(
-                `/api/weather/consumption-temperature?dateFrom=${dateFrom}&dateTo=${dateTo}`
+                `/api/weather/consumption-temperature?dateFrom=${dateFrom}&dateTo=${dateTo}&meteringPointId=${selectedMeetingPoint.id}`
             );
 
             if (!dataResponse.ok) {
@@ -103,7 +111,7 @@ const Weather = () => {
 
             // Fetch correlation analysis
             const correlationResponse = await authFetch(
-                `/api/weather/correlation?dateFrom=${dateFrom}&dateTo=${dateTo}`
+                `/api/weather/correlation?dateFrom=${dateFrom}&dateTo=${dateTo}&meteringPointId=${selectedMeetingPoint.id}`
             );
 
             if (correlationResponse.ok) {
@@ -121,10 +129,12 @@ const Weather = () => {
         }
     };
 
-    // Load data on component mount
+    // Load data on component mount or context change
     useEffect(() => {
-        fetchWeatherData();
-    }, []);
+        if (selectedMeetingPoint) {
+            fetchWeatherData();
+        }
+    }, [selectedMeetingPoint]);
 
     // Prepare chart data
     const prepareChartData = () => {

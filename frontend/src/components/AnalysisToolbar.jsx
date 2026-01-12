@@ -25,17 +25,12 @@ const AnalysisToolbar = ({
     onChartTypeChange,
     comparisonMode,
     onComparisonModeChange,
-    properties = [],
-    selectedPropertyId,
-    onPropertyChange,
-    selectedMpId,
-    onMpChange
+
 }) => {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
-    const selectedProperty = properties.find(p => Number(p.id) === Number(selectedPropertyId));
-    const availableMps = selectedProperty?.meteringPoints || [];
+
 
     return (
         <Box
@@ -54,31 +49,7 @@ const AnalysisToolbar = ({
                 alignItems={isMobile ? 'stretch' : 'center'}
                 flexWrap="wrap"
             >
-                <FormControl size="small" sx={{ minWidth: 150 }}>
-                    <InputLabel>Property</InputLabel>
-                    <Select
-                        value={selectedPropertyId || ''}
-                        label="Property"
-                        onChange={onPropertyChange}
-                    >
-                        {properties.map(p => (
-                            <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
 
-                <FormControl size="small" sx={{ minWidth: 150 }} disabled={!selectedPropertyId}>
-                    <InputLabel>Meter</InputLabel>
-                    <Select
-                        value={selectedMpId || ''}
-                        label="Meter"
-                        onChange={onMpChange}
-                    >
-                        {availableMps.map(mp => (
-                            <MenuItem key={mp.id} value={mp.id}>{mp.name}</MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
 
                 <DatePicker
                     label="Start Date"

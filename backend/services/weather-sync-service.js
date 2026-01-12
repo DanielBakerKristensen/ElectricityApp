@@ -105,41 +105,39 @@ class WeatherSyncService {
             dateTo = range.dateTo;
         }
 
-        const locationId = `${location.latitude.toFixed(4)},${location.longitude.toFixed(4)}`;
         let logId = null;
 
         this.logger.info('Weather sync started', {
             location,
-            locationId,
             dateFrom,
             dateTo,
             propertyId
         });
 
         try {
-            // Check for existing 'in_progress' sync for this location and date range to prevent overlap
+            // Check for existing 'in_progress' sync for this property and date range to prevent overlap
             const existingSync = await this.sequelize.query(`
                 SELECT id FROM data_sync_log 
-                WHERE (metering_point_id = $1 OR metering_point_id = $2)
+                WHERE metering_point_id = $1
                 AND sync_type = 'weather_historical'
                 AND status = 'in_progress'
                 AND created_at > NOW() - INTERVAL '1 hour'
                 LIMIT 1
             `, {
-                bind: [locationId, propertyId ? propertyId.toString() : locationId],
+                bind: [propertyId.toString()],
                 type: this.sequelize.QueryTypes.SELECT
             });
 
             if (existingSync.length > 0 && !options.force) {
-                const msg = 'Another weather sync is already in progress for this location/property';
-                this.logger.warn(msg, { locationId, propertyId });
+                const msg = 'Another weather sync is already in progress for this property';
+                this.logger.warn(msg, { propertyId });
                 return { success: false, error: msg };
             }
 
             // Create initial sync log entry
             try {
                 logId = await this.createWeatherSyncLog({
-                    locationId: propertyId ? propertyId.toString() : locationId,
+                    propertyId: propertyId.toString(),
                     syncType: 'weather_historical',
                     dateFrom,
                     dateTo,
@@ -165,7 +163,6 @@ class WeatherSyncService {
                     longitude: location.longitude
                 });
             } catch (apiError) {
-                // ... (rest of the error handling remains similar but updated to use logId)
                 const errorMsg = apiError.code ? `Network error: ${apiError.code} - ${apiError.message}` : `Weather API error: ${apiError.message}`;
                 this.logger.error(errorMsg, { location, dateFrom, dateTo, error: apiError.message });
                 await this.updateWeatherSyncLog(logId, { status: 'error', errorMessage: errorMsg });
@@ -174,10 +171,7 @@ class WeatherSyncService {
 
             // Transform and store
             const records = this.openMeteoService.transformWeatherData(apiResponse);
-            // Ensure location_id in records matches what we expect
-            records.forEach(r => { r.location_id = locationId; });
-
-            const recordsStored = await this.storeWeatherData(records);
+            const recordsStored = await this.storeWeatherData(records, propertyId);
 
             // Update sync log with success
             await this.updateWeatherSyncLog(logId, {
@@ -189,7 +183,7 @@ class WeatherSyncService {
                 recordsSynced: recordsStored,
                 dateFrom,
                 dateTo,
-                locationId,
+                propertyId,
                 logId
             });
 
@@ -227,9 +221,10 @@ class WeatherSyncService {
      * Store weather data records in database with upsert logic
      * Uses individual INSERT statements for reliability
      * @param {Array} records - Array of weather records to store
+     * @param {number} propertyId - The ID of the property
      * @returns {Promise<number>} Count of records inserted/updated
      */
-    async storeWeatherData(records) {
+    async storeWeatherData(records, propertyId) {
         if (!records || records.length === 0) {
             this.logger.warn('No weather records to store');
             return 0;
@@ -247,7 +242,7 @@ class WeatherSyncService {
             records.forEach(record => {
                 placeholders.push(`($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++})`);
                 values.push(
-                    record.location_id,
+                    propertyId,
                     record.timestamp.toISOString(),
                     record.temperature_celsius ?? null,
                     record.humidity_percent ?? null,
@@ -262,7 +257,7 @@ class WeatherSyncService {
 
             const query = `
                 INSERT INTO weather_data (
-                    location_id,
+                    property_id,
                     timestamp,
                     temperature_celsius,
                     humidity_percent,
@@ -273,7 +268,7 @@ class WeatherSyncService {
                     pressure_hpa,
                     data_source
                 ) VALUES ${placeholders.join(', ')}
-                ON CONFLICT (location_id, timestamp)
+                ON CONFLICT (property_id, timestamp)
                 DO UPDATE SET
                     temperature_celsius = EXCLUDED.temperature_celsius,
                     humidity_percent = EXCLUDED.humidity_percent,
@@ -327,7 +322,7 @@ class WeatherSyncService {
             `;
 
             const values = [
-                params.locationId, // Reuse metering_point_id field for location_id
+                params.propertyId, // Reuse metering_point_id field for property_id
                 params.syncType,
                 params.dateFrom,
                 params.dateTo,

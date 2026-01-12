@@ -13,6 +13,7 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { getCandlestickOptions, getHorizontalBarOptions } from '../utils/chartConfig';
 import AnalysisToolbar from '../components/AnalysisToolbar';
 import { authFetch } from '../utils/api';
+import { useProperty } from '../context/PropertyContext';
 
 const Analysis = () => {
     const theme = useTheme();
@@ -37,47 +38,17 @@ const Analysis = () => {
     const [chartType, setChartType] = useState('candlestick');
     const [comparisonMode, setComparisonMode] = useState('none');
 
-    // Properties state
-    const [properties, setProperties] = useState([]);
-    const [selectedPropertyId, setSelectedPropertyId] = useState('');
-    const [selectedMpId, setSelectedMpId] = useState('');
+    // Properties state from Context
+    const { selectedProperty, selectedMeetingPoint, loading: contextLoading } = useProperty();
 
-    // Fetch properties on mount
+    // Re-fetch data when selected meeting point changes
     useEffect(() => {
-        const fetchProperties = async () => {
-            try {
-                const response = await authFetch('/api/settings/properties');
-                if (response.ok) {
-                    const data = await response.json();
-                    setProperties(data);
-                    if (data.length > 0) {
-                        setSelectedPropertyId(data[0].id);
-                        if (data[0].meteringPoints?.length > 0) {
-                            setSelectedMpId(data[0].meteringPoints[0].id);
-                        }
-                    }
-                }
-            } catch (err) {
-                console.error('Failed to fetch properties:', err);
-            }
-        };
-        fetchProperties();
-    }, []);
-
-    const handlePropertyChange = (e) => {
-        const propId = e.target.value;
-        setSelectedPropertyId(propId);
-        const prop = properties.find(p => p.id === Number(propId));
-        if (prop?.meteringPoints?.length > 0) {
-            setSelectedMpId(prop.meteringPoints[0].id);
+        if (selectedMeetingPoint) {
+            fetchData();
         } else {
-            setSelectedMpId('');
+            setDbData(null);
         }
-    };
-
-    const handleMpChange = (e) => {
-        setSelectedMpId(e.target.value);
-    };
+    }, [selectedMeetingPoint, startDate, endDate]);
 
     // Date validation
     const validateDateRange = (start, end) => {
@@ -94,8 +65,8 @@ const Analysis = () => {
             return;
         }
 
-        if (!selectedMpId) {
-            setError("Please select a metering point");
+        if (!selectedMeetingPoint) {
+            // setError("Please select a metering point in the header"); // Optional: don't show error, just wait
             return;
         }
 
@@ -109,7 +80,7 @@ const Analysis = () => {
                 return `${year}-${month}-${day}`;
             };
 
-            const url = `/api/database-demo?dateFrom=${formatDate(startDate)}&dateTo=${formatDate(endDate)}&meteringPointId=${selectedMpId}`;
+            const url = `/api/database-demo?dateFrom=${formatDate(startDate)}&dateTo=${formatDate(endDate)}&meteringPointId=${selectedMeetingPoint.id}`;
             const response = await authFetch(url);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const data = await response.json();
@@ -244,16 +215,11 @@ const Analysis = () => {
                     onStartDateChange={setStartDate}
                     onEndDateChange={setEndDate}
                     onRefresh={fetchData}
-                    loading={loading}
+                    loading={loading || contextLoading}
                     chartType={chartType}
                     onChartTypeChange={(e) => setChartType(e.target.value)}
                     comparisonMode={comparisonMode}
                     onComparisonModeChange={(e) => setComparisonMode(e.target.value)}
-                    properties={properties}
-                    selectedPropertyId={selectedPropertyId}
-                    onPropertyChange={handlePropertyChange}
-                    selectedMpId={selectedMpId}
-                    onMpChange={handleMpChange}
                 />
 
                 {error && (

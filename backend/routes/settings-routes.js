@@ -6,6 +6,8 @@ const logger = require('../utils/logger');
 const { userAuth } = require('../utils/auth-middleware');
 const { sequelize } = require('../config/database');
 const User = require('../models/User');
+const eloverblikService = require('../services/eloverblik-service');
+const SyncService = require('../services/sync-service');
 
 const validate = (req, res, next) => {
     const errors = validationResult(req);
@@ -169,6 +171,70 @@ router.delete('/properties/:id', async (req, res) => {
     } catch (error) {
         logger.error('Error deleting property:', error);
         res.status(500).json({ error: 'Failed' });
+    }
+});
+
+// --- Eloverblik Integration ---
+
+// POST /api/settings/validate-token
+router.post('/validate-token', [
+    body('refresh_token').notEmpty().withMessage('Refresh token is required'),
+    validate
+], async (req, res) => {
+    try {
+        const { refresh_token } = req.body;
+        const meteringPoints = await eloverblikService.getMeteringPoints(refresh_token);
+        res.json(meteringPoints);
+    } catch (error) {
+        logger.error('Error validating token:', error);
+        res.status(400).json({ error: error.message || 'Failed to validate token' });
+    }
+});
+
+// POST /api/settings/properties/:id/sync-initial
+router.post('/properties/:id/sync-initial', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Check ownership
+        const user = await User.findByPk(req.user.id);
+        const property = await Property.findByPk(id, {
+            include: [{ model: MeteringPoint, as: 'meteringPoints' }]
+        });
+
+        if (!property || !(await user.hasProperty(id))) {
+            return res.status(404).json({ error: 'Property not found' });
+        }
+
+        const syncService = new SyncService(eloverblikService, sequelize, logger);
+
+        // Calculate 7 days ago
+        const today = new Date();
+        const sevenDaysAgo = new Date(today);
+        sevenDaysAgo.setDate(today.getDate() - 8); // Go back 8 days to ensure we get 7 full days
+
+        const formatDate = (date) => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        const dateFrom = formatDate(sevenDaysAgo);
+        const dateTo = formatDate(new Date(today.setDate(today.getDate() - 1))); // Up to yesterday
+
+        logger.info(`Triggering initial 7-day sync for property ${id}`, { dateFrom, dateTo });
+
+        const result = await syncService.syncPropertyConsumption({
+            propertyId: id,
+            dateFrom,
+            dateTo
+        });
+
+        res.json(result);
+    } catch (error) {
+        logger.error('Error in initial sync:', error);
+        res.status(500).json({ error: 'Failed to trigger initial sync' });
     }
 });
 

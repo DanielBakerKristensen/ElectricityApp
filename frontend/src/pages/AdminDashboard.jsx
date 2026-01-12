@@ -16,8 +16,18 @@ import {
     Tabs,
     Tab,
     Alert,
-    CircularProgress
+    CircularProgress,
+    Button,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogContentText,
+    DialogTitle,
+    IconButton
 } from '@mui/material';
+import DeleteIcon from '@mui/icons-material/Delete';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import { authFetch } from '../utils/api';
 
 const AdminDashboard = () => {
     const [users, setUsers] = useState([]);
@@ -26,6 +36,10 @@ const AdminDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [tabValue, setTabValue] = useState(0);
+    const [confirmOpen, setConfirmOpen] = useState(false);
+    const [userToDelete, setUserToDelete] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [deleteSuccess, setDeleteSuccess] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -73,6 +87,53 @@ const AdminDashboard = () => {
         setTabValue(newValue);
     };
 
+    const handleOpenConfirm = (user) => {
+        setUserToDelete(user);
+        setDeleteSuccess(false);
+        setConfirmOpen(true);
+    };
+
+    const handleCloseConfirm = () => {
+        setConfirmOpen(false);
+        setUserToDelete(null);
+        setDeleteSuccess(false);
+    };
+
+    const handleDeleteUser = async () => {
+        if (!userToDelete || isDeleting) return;
+
+        setIsDeleting(true);
+        try {
+            const response = await authFetch(`/api/admin/users/${userToDelete.id}`, {
+                method: 'DELETE',
+            });
+
+            if (!response.ok) {
+                let errorData;
+                try {
+                    errorData = await response.json();
+                } catch (e) {
+                    throw new Error('Failed to delete user and could not parse error response.');
+                }
+                throw new Error(errorData.error || 'Failed to delete user');
+            }
+
+            setDeleteSuccess(true);
+            setUsers(users.filter(u => u.id !== userToDelete.id));
+            
+            // Auto-close dialog after success
+            setTimeout(() => {
+                handleCloseConfirm();
+            }, 2000);
+
+        } catch (err) {
+            setError(err.message);
+            handleCloseConfirm();
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     if (loading) {
         return (
             <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
@@ -90,6 +151,7 @@ const AdminDashboard = () => {
     }
 
     return (
+        <>
         <Box p={3}>
             <Typography variant="h4" gutterBottom>
                 Admin Dashboard
@@ -157,6 +219,7 @@ const AdminDashboard = () => {
                                     <TableCell>Role</TableCell>
                                     <TableCell>Onboarding</TableCell>
                                     <TableCell>Created At</TableCell>
+                                    <TableCell align="right">Actions</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -180,6 +243,11 @@ const AdminDashboard = () => {
                                             />
                                         </TableCell>
                                         <TableCell>{new Date(user.createdAt).toLocaleDateString()}</TableCell>
+                                        <TableCell align="right">
+                                            <IconButton onClick={() => handleOpenConfirm(user)} color="error" size="small">
+                                                <DeleteIcon />
+                                            </IconButton>
+                                        </TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -257,6 +325,32 @@ const AdminDashboard = () => {
                 )}
             </div>
         </Box>
+        <Dialog
+    open={confirmOpen}
+    onClose={handleCloseConfirm}
+>
+    <DialogTitle>Confirm Deletion</DialogTitle>
+    <DialogContent>
+        <DialogContentText>
+            Are you sure you want to delete the user "{userToDelete?.email}"? This action is irreversible and will delete all associated properties, metering points, and data.
+        </DialogContentText>
+        {deleteSuccess && (
+            <Box mt={2} p={2} sx={{ border: '1px solid #4caf50', borderRadius: 1, backgroundColor: '#f1f8e9' }}>
+                <Typography variant="h6" color="success.main" sx={{ display: 'flex', alignItems: 'center' }}>
+                    <CheckCircleIcon sx={{ mr: 1 }} />
+                    User deleted successfully!
+                </Typography>
+            </Box>
+        )}
+    </DialogContent>
+    <DialogActions>
+        <Button onClick={handleCloseConfirm} disabled={isDeleting}>Cancel</Button>
+        <Button onClick={handleDeleteUser} color="error" autoFocus disabled={isDeleting || deleteSuccess}>
+            {isDeleting ? 'Deleting...' : deleteSuccess ? 'Deleted!' : 'Delete'}
+        </Button>
+    </DialogActions>
+</Dialog>
+    </>
     );
 };
 

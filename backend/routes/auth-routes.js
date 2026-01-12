@@ -70,7 +70,9 @@ router.post('/login', async (req, res) => {
                 email: user.email,
                 name: user.name,
                 onboarding_completed: user.onboarding_completed,
-                is_admin: user.is_admin
+                is_admin: user.is_admin,
+                defaultPropertyId: user.defaultPropertyId,
+                defaultMeetingPointId: user.defaultMeetingPointId
             }
         });
 
@@ -151,7 +153,9 @@ router.post('/register', async (req, res) => {
                 email: user.email,
                 name: user.name,
                 onboarding_completed: user.onboarding_completed,
-                is_admin: user.is_admin
+                is_admin: user.is_admin,
+                defaultPropertyId: user.defaultPropertyId,
+                defaultMeetingPointId: user.defaultMeetingPointId
             }
         });
 
@@ -202,7 +206,7 @@ router.put('/profile', async (req, res) => {
             return res.status(401).json({ error: 'User not found' });
         }
 
-        const { name, email, currentPassword, newPassword } = req.body;
+        const { name, email, currentPassword, newPassword, defaultPropertyId, defaultMeetingPointId } = req.body;
         const updates = {};
 
         // Update name if provided
@@ -229,6 +233,9 @@ router.put('/profile', async (req, res) => {
             updates.password_hash = await bcrypt.hash(newPassword, 10);
         }
 
+        if (defaultPropertyId !== undefined) updates.defaultPropertyId = defaultPropertyId;
+        if (defaultMeetingPointId !== undefined) updates.defaultMeetingPointId = defaultMeetingPointId;
+
         // Apply updates
         await user.update(updates);
 
@@ -239,7 +246,9 @@ router.put('/profile', async (req, res) => {
                 email: user.email,
                 name: user.name,
                 onboarding_completed: user.onboarding_completed,
-                is_admin: user.is_admin
+                is_admin: user.is_admin,
+                defaultPropertyId: user.defaultPropertyId,
+                defaultMeetingPointId: user.defaultMeetingPointId
             }
         });
 
@@ -312,7 +321,7 @@ router.get('/verify', async (req, res) => {
 
         const decoded = jwt.verify(token, JWT_SECRET);
         const user = await User.findByPk(decoded.id, {
-            attributes: ['id', 'email', 'name', 'onboarding_completed', 'is_admin']
+            attributes: ['id', 'email', 'name', 'onboarding_completed', 'is_admin', 'defaultPropertyId', 'defaultMeetingPointId']
         });
 
         if (!user) {
@@ -326,7 +335,9 @@ router.get('/verify', async (req, res) => {
                 email: user.email,
                 name: user.name,
                 onboarding_completed: user.onboarding_completed,
-                is_admin: user.is_admin
+                is_admin: user.is_admin,
+                defaultPropertyId: user.defaultPropertyId,
+                defaultMeetingPointId: user.defaultMeetingPointId
             }
         });
 

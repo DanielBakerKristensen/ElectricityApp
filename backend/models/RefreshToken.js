@@ -7,6 +7,15 @@ const RefreshToken = sequelize.define('RefreshToken', {
         primaryKey: true,
         autoIncrement: true
     },
+    property_id: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        references: {
+            model: 'properties',
+            key: 'id'
+        },
+        comment: 'Foreign key to properties table'
+    },
     name: {
         type: DataTypes.STRING,
         allowNull: false,
@@ -18,7 +27,13 @@ const RefreshToken = sequelize.define('RefreshToken', {
     }
 }, {
     tableName: 'refresh_tokens',
-    timestamps: true
+    timestamps: true,
+    indexes: [
+        {
+            fields: ['property_id'],
+            name: 'refresh_tokens_property_id_idx'
+        }
+    ]
 });
 
 module.exports = RefreshToken;

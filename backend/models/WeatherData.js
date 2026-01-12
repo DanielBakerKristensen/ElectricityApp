@@ -7,10 +7,14 @@ const WeatherData = sequelize.define('WeatherData', {
         primaryKey: true,
         autoIncrement: true
     },
-    location_id: {
-        type: DataTypes.STRING(50),
+    property_id: {
+        type: DataTypes.INTEGER,
         allowNull: false,
-        comment: 'Location identifier (lat,lng format)'
+        references: {
+            model: 'properties',
+            key: 'id'
+        },
+        comment: 'Foreign key to the properties table'
     },
     timestamp: {
         type: DataTypes.DATE,
@@ -57,6 +61,14 @@ const WeatherData = sequelize.define('WeatherData', {
         allowNull: false,
         defaultValue: 'open-meteo',
         comment: 'Source of weather data'
+    },
+    createdAt: {
+        type: DataTypes.DATE,
+        field: 'created_at'
+    },
+    updatedAt: {
+        type: DataTypes.DATE,
+        field: 'updated_at'
     }
 }, {
     tableName: 'weather_data',
@@ -64,16 +76,16 @@ const WeatherData = sequelize.define('WeatherData', {
     indexes: [
         {
             unique: true,
-            fields: ['location_id', 'timestamp'],
-            name: 'weather_data_location_timestamp_unique'
+            fields: ['property_id', 'timestamp'],
+            name: 'weather_data_property_timestamp_unique'
         },
         {
             fields: ['timestamp'],
             name: 'weather_data_timestamp_idx'
         },
         {
-            fields: ['location_id'],
-            name: 'weather_data_location_idx'
+            fields: ['property_id'],
+            name: 'weather_data_property_idx'
         }
     ]
 });

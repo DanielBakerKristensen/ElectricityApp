@@ -1,8 +1,40 @@
 const express = require('express');
 const logger = require('../utils/logger');
 const { sequelize } = require('../config/database');
+const { MeteringPoint, User } = require('../models');
+const { userAuth } = require('../utils/auth-middleware');
 
 const router = express.Router();
+
+// Apply userAuth to all annotation routes
+router.use(userAuth);
+
+/**
+ * Helper function to resolve database metering point ID to actual metering point string
+ * Also validates user ownership of the metering point
+ * @param {number|string} dbMpId - Database primary key of metering point
+ * @param {Object} user - User object from auth middleware
+ * @returns {Promise<{success: boolean, meteringPointId?: string, error?: string}>}
+ */
+async function resolveMeteringPointId(dbMpId, user) {
+    if (!dbMpId) {
+        return { success: false, error: 'meteringPointId parameter is required' };
+    }
+
+    const mp = await MeteringPoint.findByPk(dbMpId);
+    if (!mp) {
+        return { success: false, error: 'Metering point not found' };
+    }
+
+    // Validate user ownership
+    const userRecord = await User.findByPk(user.id);
+    const hasProperty = await userRecord.hasProperty(mp.property_id);
+    if (!hasProperty) {
+        return { success: false, error: 'Metering point not found' };
+    }
+
+    return { success: true, meteringPointId: mp.meteringPointId.trim() };
+}
 
 /**
  * @swagger
@@ -25,14 +57,17 @@ const router = express.Router();
  */
 router.get('/', async (req, res) => {
     try {
-        const { meteringPointId } = req.query;
+        const { meteringPointId: dbMpId } = req.query;
 
-        if (!meteringPointId) {
+        // Resolve database ID to actual metering point string with ownership validation
+        const resolution = await resolveMeteringPointId(dbMpId, req.user);
+        if (!resolution.success) {
             return res.status(400).json({
                 success: false,
-                error: 'meteringPointId parameter is required'
+                error: resolution.error
             });
         }
+        const meteringPointId = resolution.meteringPointId;
 
         logger.info('Fetching annotations', { meteringPointId });
 
@@ -125,14 +160,24 @@ router.get('/', async (req, res) => {
  */
 router.post('/', async (req, res) => {
     try {
-        const { meteringPointId, title, description, category, date, tags } = req.body;
+        const { meteringPointId: dbMpId, title, description, category, date, tags } = req.body;
 
-        if (!meteringPointId || !title || !date) {
+        if (!dbMpId || !title || !date) {
             return res.status(400).json({
                 success: false,
                 error: 'meteringPointId, title, and date are required'
             });
         }
+
+        // Resolve database ID to actual metering point string with ownership validation
+        const resolution = await resolveMeteringPointId(dbMpId, req.user);
+        if (!resolution.success) {
+            return res.status(400).json({
+                success: false,
+                error: resolution.error
+            });
+        }
+        const meteringPointId = resolution.meteringPointId;
 
         logger.info('Creating annotation', {
             meteringPointId,
@@ -236,6 +281,38 @@ router.put('/:id', async (req, res) => {
         const { id } = req.params;
         const { title, description, category, date, tags } = req.body;
 
+        // First, verify the annotation exists and user has ownership
+        const existingQuery = `
+            SELECT metering_point_id FROM consumption_annotations WHERE id = $1
+        `;
+        const existing = await sequelize.query(existingQuery, {
+            bind: [id],
+            type: sequelize.QueryTypes.SELECT
+        });
+
+        if (existing.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Annotation not found'
+            });
+        }
+
+        // Verify user owns this metering point by looking up the metering point config
+        const mpConfig = await MeteringPoint.findOne({
+            where: { meteringPointId: existing[0].metering_point_id }
+        });
+
+        if (mpConfig) {
+            const userRecord = await User.findByPk(req.user.id);
+            const hasProperty = await userRecord.hasProperty(mpConfig.property_id);
+            if (!hasProperty) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Annotation not found'
+                });
+            }
+        }
+
         logger.info('Updating annotation', { id, title });
 
         const query = `
@@ -321,6 +398,38 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
     try {
         const { id } = req.params;
+
+        // First, verify the annotation exists and user has ownership
+        const existingQuery = `
+            SELECT metering_point_id FROM consumption_annotations WHERE id = $1
+        `;
+        const existing = await sequelize.query(existingQuery, {
+            bind: [id],
+            type: sequelize.QueryTypes.SELECT
+        });
+
+        if (existing.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Annotation not found'
+            });
+        }
+
+        // Verify user owns this metering point by looking up the metering point config
+        const mpConfig = await MeteringPoint.findOne({
+            where: { meteringPointId: existing[0].metering_point_id }
+        });
+
+        if (mpConfig) {
+            const userRecord = await User.findByPk(req.user.id);
+            const hasProperty = await userRecord.hasProperty(mpConfig.property_id);
+            if (!hasProperty) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Annotation not found'
+                });
+            }
+        }
 
         logger.info('Deleting annotation', { id });
 

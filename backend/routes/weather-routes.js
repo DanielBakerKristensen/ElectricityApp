@@ -3,13 +3,53 @@ const logger = require('../utils/logger');
 const WeatherSyncService = require('../services/weather-sync-service');
 const WeatherAnalysisService = require('../services/weather-analysis-service');
 const { sequelize } = require('../config/database');
-
-const { adminAuth } = require('./sync-routes');
+const { MeteringPoint, User } = require('../models');
+const { userAuth } = require('../utils/auth-middleware');
 
 const router = express.Router();
 
-// Apply adminAuth to all weather routes
-router.use(adminAuth);
+// Apply userAuth to all weather routes (allows regular users to access their data)
+router.use(userAuth);
+
+/**
+ * Helper function to resolve database metering point ID to actual metering point string
+ * Also validates user ownership of the metering point
+ * @param {number|string} dbMpId - Database primary key of metering point
+ * @param {Object} user - User object from auth middleware
+ * @returns {Promise<{success: boolean, meteringPointId?: string, error?: string}>}
+ */
+async function resolveMeteringPointId(dbMpId, user) {
+    if (!dbMpId) {
+        // Try to get default metering point from user's first property
+        const userRecord = await User.findByPk(user.id);
+        const properties = await userRecord.getProperties({
+            include: ['meteringPoints']
+        });
+
+        if (properties.length === 0 || !properties[0].meteringPoints?.length) {
+            return { success: false, error: 'No metering points configured' };
+        }
+
+        return {
+            success: true,
+            meteringPointId: properties[0].meteringPoints[0].meteringPointId.trim()
+        };
+    }
+
+    const mp = await MeteringPoint.findByPk(dbMpId);
+    if (!mp) {
+        return { success: false, error: 'Metering point not found' };
+    }
+
+    // Validate user ownership
+    const userRecord = await User.findByPk(user.id);
+    const hasProperty = await userRecord.hasProperty(mp.property_id);
+    if (!hasProperty) {
+        return { success: false, error: 'Metering point not found' };
+    }
+
+    return { success: true, meteringPointId: mp.meteringPointId.trim() };
+}
 
 /**
  * @swagger
@@ -46,7 +86,7 @@ router.use(adminAuth);
  */
 router.get('/consumption-temperature', async (req, res) => {
     try {
-        const { dateFrom, dateTo, meteringPointId } = req.query;
+        const { dateFrom, dateTo, meteringPointId: dbMpId } = req.query;
 
         // Validate required parameters
         if (!dateFrom || !dateTo) {
@@ -65,15 +105,15 @@ router.get('/consumption-temperature', async (req, res) => {
             });
         }
 
-        // Use default metering point if not provided
-        const meteringPoint = meteringPointId || process.env.ELOVERBLIK_METERING_POINTS;
-
-        if (!meteringPoint) {
+        // Resolve database ID to actual metering point string
+        const resolution = await resolveMeteringPointId(dbMpId, req.user);
+        if (!resolution.success) {
             return res.status(400).json({
                 success: false,
-                error: 'No metering point ID provided and no default configured'
+                error: resolution.error
             });
         }
+        const meteringPoint = resolution.meteringPointId;
 
         logger.info('Fetching consumption-temperature data', { dateFrom, dateTo, meteringPointId: meteringPoint });
 
@@ -141,7 +181,7 @@ router.get('/consumption-temperature', async (req, res) => {
  */
 router.get('/correlation', async (req, res) => {
     try {
-        const { dateFrom, dateTo, meteringPointId } = req.query;
+        const { dateFrom, dateTo, meteringPointId: dbMpId } = req.query;
 
         if (!dateFrom || !dateTo) {
             return res.status(400).json({
@@ -150,7 +190,15 @@ router.get('/correlation', async (req, res) => {
             });
         }
 
-        const meteringPoint = meteringPointId || process.env.ELOVERBLIK_METERING_POINTS;
+        // Resolve database ID to actual metering point string
+        const resolution = await resolveMeteringPointId(dbMpId, req.user);
+        if (!resolution.success) {
+            return res.status(400).json({
+                success: false,
+                error: resolution.error
+            });
+        }
+        const meteringPoint = resolution.meteringPointId;
 
         const correlation = await WeatherAnalysisService.getCorrelationAnalysis({
             dateFrom,

@@ -1,8 +1,66 @@
 const express = require('express');
 const logger = require('../utils/logger');
 const AnalyticsService = require('../services/analytics-service');
+const { MeteringPoint, User } = require('../models');
+const { userAuth } = require('../utils/auth-middleware');
 
 const router = express.Router();
+
+// Apply userAuth to all analytics routes
+router.use(userAuth);
+
+/**
+ * Helper function to resolve database metering point ID to actual metering point string
+ * Also validates user ownership of the metering point
+ * @param {number|string} dbMpId - Database primary key of metering point
+ * @param {Object} user - User object from auth middleware
+ * @returns {Promise<{success: boolean, meteringPointId?: string, error?: string}>}
+ */
+async function resolveMeteringPointId(dbMpId, user) {
+    logger.info('resolveMeteringPointId called - dbMpId: ' + dbMpId + ', userId: ' + user.id);
+    
+    if (!dbMpId) {
+        logger.info('No metering point ID provided, using default');
+        // Try to get default metering point from user's first property
+        const userRecord = await User.findByPk(user.id);
+        const properties = await userRecord.getProperties({
+            include: ['meteringPoints']
+        });
+
+        if (properties.length === 0 || !properties[0].meteringPoints?.length) {
+            return { success: false, error: 'No metering points configured' };
+        }
+
+        return {
+            success: true,
+            meteringPointId: properties[0].meteringPoints[0].meteringPointId.trim()
+        };
+    }
+
+    logger.info('Looking up metering point with ID: ' + dbMpId);
+    const mp = await MeteringPoint.findByPk(dbMpId);
+    if (!mp) {
+        logger.error('Metering point not found - dbMpId: ' + dbMpId);
+        return { success: false, error: 'Metering point not found' };
+    }
+
+    logger.info('Found metering point - mpId: ' + mp.id + ', propertyId: ' + mp.property_id + ', meteringPointId: ' + mp.meteringPointId);
+
+    // Validate user ownership
+    const userRecord = await User.findByPk(user.id);
+    logger.info('Checking user property ownership - userId: ' + userRecord.id + ', propertyId: ' + mp.property_id);
+    
+    const hasProperty = await userRecord.hasProperty(mp.property_id);
+    logger.info('User property ownership check result - hasProperty: ' + hasProperty);
+    
+    if (!hasProperty) {
+        logger.error('User does not have access to property - userId: ' + userRecord.id + ', propertyId: ' + mp.property_id);
+        return { success: false, error: 'Metering point not found' };
+    }
+
+    logger.info('Successfully resolved metering point - meteringPointId: ' + mp.meteringPointId.trim());
+    return { success: true, meteringPointId: mp.meteringPointId.trim() };
+}
 
 // Middleware to validate date parameters
 const validateDateParams = (req, res, next) => {
@@ -71,15 +129,17 @@ const validateDateParams = (req, res, next) => {
  */
 router.get('/year-over-year', validateDateParams, async (req, res) => {
     try {
-        const { dateFrom, dateTo, meteringPointId } = req.query;
-        const meteringPoint = meteringPointId || process.env.ELOVERBLIK_METERING_POINTS;
+        const { dateFrom, dateTo, meteringPointId: dbMpId } = req.query;
 
-        if (!meteringPoint) {
+        // Resolve database ID to actual metering point string
+        const resolution = await resolveMeteringPointId(dbMpId, req.user);
+        if (!resolution.success) {
             return res.status(400).json({
                 success: false,
-                error: 'No metering point ID provided and no default configured'
+                error: resolution.error
             });
         }
+        const meteringPoint = resolution.meteringPointId;
 
         logger.info('Fetching year-over-year comparison', {
             dateFrom,
@@ -100,7 +160,7 @@ router.get('/year-over-year', validateDateParams, async (req, res) => {
             .reduce((sum, d) => sum + (d.previous_consumption || 0), 0);
 
         const averageChange = data.filter(d => d.percentage_change !== null)
-            .reduce((sum, d) => sum + d.percentage_change, 0) / 
+            .reduce((sum, d) => sum + d.percentage_change, 0) /
             data.filter(d => d.percentage_change !== null).length;
 
         res.json({
@@ -165,15 +225,17 @@ router.get('/year-over-year', validateDateParams, async (req, res) => {
  */
 router.get('/month-over-month', validateDateParams, async (req, res) => {
     try {
-        const { dateFrom, dateTo, meteringPointId } = req.query;
-        const meteringPoint = meteringPointId || process.env.ELOVERBLIK_METERING_POINTS;
+        const { dateFrom, dateTo, meteringPointId: dbMpId } = req.query;
 
-        if (!meteringPoint) {
+        // Resolve database ID to actual metering point string
+        const resolution = await resolveMeteringPointId(dbMpId, req.user);
+        if (!resolution.success) {
             return res.status(400).json({
                 success: false,
-                error: 'No metering point ID provided and no default configured'
+                error: resolution.error
             });
         }
+        const meteringPoint = resolution.meteringPointId;
 
         logger.info('Fetching month-over-month comparison', {
             dateFrom,
@@ -195,8 +257,8 @@ router.get('/month-over-month', validateDateParams, async (req, res) => {
 
         const averageChange = data.filter(d => d.percentage_change !== null).length > 0
             ? data.filter(d => d.percentage_change !== null)
-                .reduce((sum, d) => sum + d.percentage_change, 0) / 
-              data.filter(d => d.percentage_change !== null).length
+                .reduce((sum, d) => sum + d.percentage_change, 0) /
+            data.filter(d => d.percentage_change !== null).length
             : 0;
 
         res.json({
@@ -268,15 +330,17 @@ router.get('/month-over-month', validateDateParams, async (req, res) => {
  */
 router.get('/rolling-averages', validateDateParams, async (req, res) => {
     try {
-        const { dateFrom, dateTo, meteringPointId, window = 'all' } = req.query;
-        const meteringPoint = meteringPointId || process.env.ELOVERBLIK_METERING_POINTS;
+        const { dateFrom, dateTo, meteringPointId: dbMpId, window = 'all' } = req.query;
 
-        if (!meteringPoint) {
+        // Resolve database ID to actual metering point string
+        const resolution = await resolveMeteringPointId(dbMpId, req.user);
+        if (!resolution.success) {
             return res.status(400).json({
                 success: false,
-                error: 'No metering point ID provided and no default configured'
+                error: resolution.error
             });
         }
+        const meteringPoint = resolution.meteringPointId;
 
         logger.info('Fetching rolling averages', {
             dateFrom,
@@ -376,15 +440,17 @@ router.get('/rolling-averages', validateDateParams, async (req, res) => {
  */
 router.get('/deviations', validateDateParams, async (req, res) => {
     try {
-        const { dateFrom, dateTo, meteringPointId, threshold = 20 } = req.query;
-        const meteringPoint = meteringPointId || process.env.ELOVERBLIK_METERING_POINTS;
+        const { dateFrom, dateTo, meteringPointId: dbMpId, threshold = 20 } = req.query;
 
-        if (!meteringPoint) {
+        // Resolve database ID to actual metering point string
+        const resolution = await resolveMeteringPointId(dbMpId, req.user);
+        if (!resolution.success) {
             return res.status(400).json({
                 success: false,
-                error: 'No metering point ID provided and no default configured'
+                error: resolution.error
             });
         }
+        const meteringPoint = resolution.meteringPointId;
 
         const deviationThreshold = parseFloat(threshold);
         if (isNaN(deviationThreshold) || deviationThreshold <= 0) {

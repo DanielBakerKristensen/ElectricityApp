@@ -47,7 +47,7 @@ class AnalyticsService {
             const currentYearQuery = `
                 SELECT 
                     DATE(timestamp) as date,
-                    SUM(CAST(value AS DECIMAL)) as consumption,
+                    SUM(CAST(quantity AS DECIMAL)) as consumption,
                     COUNT(*) as record_count
                 FROM consumption_data
                 WHERE metering_point_id = $1
@@ -65,7 +65,7 @@ class AnalyticsService {
             const previousYearQuery = `
                 SELECT 
                     DATE(timestamp) as date,
-                    SUM(CAST(value AS DECIMAL)) as consumption,
+                    SUM(CAST(quantity AS DECIMAL)) as consumption,
                     COUNT(*) as record_count
                 FROM consumption_data
                 WHERE metering_point_id = $1
@@ -135,7 +135,7 @@ class AnalyticsService {
             const currentMonthQuery = `
                 SELECT 
                     DATE(timestamp) as date,
-                    SUM(CAST(value AS DECIMAL)) as consumption,
+                    SUM(CAST(quantity AS DECIMAL)) as consumption,
                     COUNT(*) as record_count
                 FROM consumption_data
                 WHERE metering_point_id = $1
@@ -153,7 +153,7 @@ class AnalyticsService {
             const previousMonthQuery = `
                 SELECT 
                     DATE(timestamp) as date,
-                    SUM(CAST(value AS DECIMAL)) as consumption,
+                    SUM(CAST(quantity AS DECIMAL)) as consumption,
                     COUNT(*) as record_count
                 FROM consumption_data
                 WHERE metering_point_id = $1
@@ -215,8 +215,8 @@ class AnalyticsService {
             const query = `
                 SELECT 
                     DATE(timestamp) as date,
-                    SUM(CAST(value AS DECIMAL)) as daily_consumption,
-                    AVG(SUM(CAST(value AS DECIMAL))) OVER (
+                    SUM(CAST(quantity AS DECIMAL)) as daily_consumption,
+                    AVG(SUM(CAST(quantity AS DECIMAL))) OVER (
                         ORDER BY DATE(timestamp) 
                         ROWS BETWEEN ${windowDays - 1} PRECEDING AND CURRENT ROW
                     ) as rolling_avg_${windowDays}d,
@@ -272,16 +272,16 @@ class AnalyticsService {
             const query = `
                 SELECT 
                     DATE(timestamp) as date,
-                    SUM(CAST(value AS DECIMAL)) as daily_consumption,
-                    AVG(SUM(CAST(value AS DECIMAL))) OVER (
+                    SUM(CAST(quantity AS DECIMAL)) as daily_consumption,
+                    AVG(SUM(CAST(quantity AS DECIMAL))) OVER (
                         ORDER BY DATE(timestamp) 
                         ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
                     ) as rolling_avg_7d,
-                    AVG(SUM(CAST(value AS DECIMAL))) OVER (
+                    AVG(SUM(CAST(quantity AS DECIMAL))) OVER (
                         ORDER BY DATE(timestamp) 
                         ROWS BETWEEN 29 PRECEDING AND CURRENT ROW
                     ) as rolling_avg_30d,
-                    AVG(SUM(CAST(value AS DECIMAL))) OVER (
+                    AVG(SUM(CAST(quantity AS DECIMAL))) OVER (
                         ORDER BY DATE(timestamp) 
                         ROWS BETWEEN 364 PRECEDING AND CURRENT ROW
                     ) as rolling_avg_365d,
@@ -339,7 +339,7 @@ class AnalyticsService {
                 WITH daily_data AS (
                     SELECT 
                         DATE(timestamp) as date,
-                        SUM(CAST(value AS DECIMAL)) as daily_consumption
+                        SUM(CAST(quantity AS DECIMAL)) as daily_consumption
                     FROM consumption_data
                     WHERE metering_point_id = $1
                         AND DATE(timestamp) BETWEEN $2 AND $3

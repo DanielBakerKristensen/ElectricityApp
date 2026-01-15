@@ -95,6 +95,15 @@ const Compare = () => {
                 endpoint = `/api/analytics/month-over-month?dateFrom=${dateFrom}&dateTo=${dateTo}&meteringPointId=${selectedMeetingPoint.id}`;
             }
 
+            console.log('Compare feature - Sending request:', {
+                endpoint,
+                selectedMeetingPoint: {
+                    id: selectedMeetingPoint.id,
+                    meteringPointId: selectedMeetingPoint.meteringPointId,
+                    name: selectedMeetingPoint.name
+                }
+            });
+
             const response = await authFetch(endpoint);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);

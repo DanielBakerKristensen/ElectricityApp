@@ -26,8 +26,9 @@ class SyncService {
         targetDate.setDate(today.getDate() - 2); // Default to 2 days ago for data availability
 
         const dateFrom = new Date(targetDate);
+        dateFrom.setDate(targetDate.getDate() - (daysBack - 1)); // Adjust start date based on daysBack
+
         const dateTo = new Date(targetDate);
-        dateTo.setDate(targetDate.getDate() + daysBack);
 
         const formatDate = (date) => {
             const year = date.getFullYear();
@@ -40,6 +41,26 @@ class SyncService {
             dateFrom: formatDate(dateFrom),
             dateTo: formatDate(dateTo)
         };
+    }
+
+    /**
+     * Get the last synced timestamp for a metering point
+     */
+    async getLastSyncedDate(meteringPointId) {
+        const result = await this.sequelize.query(
+            `SELECT MAX(timestamp) as last_timestamp 
+             FROM consumption_data 
+             WHERE metering_point_id = $1 AND aggregation_level = 'Hour'`,
+            {
+                bind: [meteringPointId],
+                type: this.sequelize.QueryTypes.SELECT
+            }
+        );
+
+        if (result && result[0] && result[0].last_timestamp) {
+            return new Date(result[0].last_timestamp);
+        }
+        return null;
     }
 
     /**
@@ -91,7 +112,51 @@ class SyncService {
             // 3. Sync each metering point
             const results = [];
             for (const mp of meteringPoints) {
-                const result = await this.syncMeteringPoint(property.refresh_token, mp.meteringPointId, dateFrom, dateTo);
+                // Determine effective date range for this metering point
+                let effectiveDateFrom = dateFrom;
+                let effectiveDateTo = dateTo;
+
+                if (!effectiveDateFrom || !effectiveDateTo) {
+                    const lastSynced = await this.getLastSyncedDate(mp.meteringPointId);
+
+                    const today = new Date();
+                    const availableUntil = new Date(today);
+                    availableUntil.setDate(today.getDate() - 2); // Eloverblik data availability buffer
+
+                    if (lastSynced) {
+                        const nextSyncDate = new Date(lastSynced);
+                        nextSyncDate.setDate(nextSyncDate.getDate() + 1);
+
+                        // If we are already up to date (next sync date is after available date), skip
+                        if (nextSyncDate > availableUntil) {
+                            this.logger.info(`Metering point ${mp.meteringPointId} is up to date. Last synced: ${lastSynced.toISOString().split('T')[0]}`);
+                            results.push({
+                                meteringPointId: mp.meteringPointId,
+                                success: true,
+                                message: 'Already up to date',
+                                recordsSynced: 0
+                            });
+                            continue;
+                        }
+
+                        // Sync from the day after last sync up to "available until"
+                        effectiveDateFrom = nextSyncDate.toISOString().split('T')[0];
+                        effectiveDateTo = availableUntil.toISOString().split('T')[0];
+                    } else {
+                        // No data yet, fall back to default window
+                        const daysBack = options.daysBack || parseInt(process.env.SYNC_DAYS_BACK || '1');
+                        const range = this.calculateDateRange(daysBack);
+                        effectiveDateFrom = range.dateFrom;
+                        effectiveDateTo = range.dateTo;
+                    }
+                }
+
+                this.logger.info(`Syncing metering point ${mp.meteringPointId}`, {
+                    dateFrom: effectiveDateFrom,
+                    dateTo: effectiveDateTo
+                });
+
+                const result = await this.syncMeteringPoint(property.refresh_token, mp.meteringPointId, effectiveDateFrom, effectiveDateTo);
                 results.push({
                     meteringPointId: mp.meteringPointId,
                     ...result
@@ -196,27 +261,52 @@ class SyncService {
 
     async storeConsumptionData(records) {
         if (!records.length) return 0;
+
+        // Lookup metering_point_pk for each record if not present (optimization: do this in bulk before)
+        // For now, assuming records come from syncMeteringPoint where we can pass the PK.
+        // Actually, let's modify the flow to pass the PK down.
+        // But since we can't easily change the method signature without changing the whole chain,
+        // let's do a subquery or join? No, let's rely on the fact that we can get the PK.
+
+        // WAIT: The records array does not have the PK in it yet.
+        // We need to fetch it.
+        if (!records[0].metering_point_pk) {
+            const mpId = records[0].metering_point_id;
+            const mp = await MeteringPoint.findOne({ where: { metering_point_id: mpId } });
+            if (mp) {
+                records.forEach(r => r.metering_point_pk = mp.id);
+            }
+        }
+
         const query = `
-            INSERT INTO consumption_data (metering_point_id, timestamp, aggregation_level, quantity, quality, measurement_unit)
-            VALUES ${records.map((_, i) => `($${i * 6 + 1}, $${i * 6 + 2}, $${i * 6 + 3}, $${i * 6 + 4}, $${i * 6 + 5}, $${i * 6 + 6})`).join(', ')}
+            INSERT INTO consumption_data (metering_point_id, metering_point_pk, timestamp, aggregation_level, quantity, quality, measurement_unit)
+            VALUES ${records.map((_, i) => `($${i * 7 + 1}, $${i * 7 + 2}, $${i * 7 + 3}, $${i * 7 + 4}, $${i * 7 + 5}, $${i * 7 + 6}, $${i * 7 + 7})`).join(', ')}
             ON CONFLICT (metering_point_id, timestamp, aggregation_level)
             DO UPDATE SET
                 quantity = EXCLUDED.quantity,
                 quality = EXCLUDED.quality,
-                measurement_unit = EXCLUDED.measurement_unit
+                measurement_unit = EXCLUDED.measurement_unit,
+                metering_point_pk = EXCLUDED.metering_point_pk
         `;
-        const values = records.flatMap(r => [r.metering_point_id, r.timestamp, r.aggregation_level, r.quantity, r.quality, r.measurement_unit]);
+        const values = records.flatMap(r => [r.metering_point_id, r.metering_point_pk, r.timestamp, r.aggregation_level, r.quantity, r.quality, r.measurement_unit]);
         await this.sequelize.query(query, { bind: values, type: this.sequelize.QueryTypes.INSERT });
         return records.length;
     }
 
     async createSyncLog(params) {
+        // Fetch the internal PK for the metering point
+        let meteringPointPk = null;
+        if (params.meteringPointId) {
+            const mp = await MeteringPoint.findOne({ where: { metering_point_id: params.meteringPointId } });
+            if (mp) meteringPointPk = mp.id;
+        }
+
         const query = `
-            INSERT INTO data_sync_log (metering_point_id, sync_type, date_from, date_to, aggregation_level, status, records_synced)
-            VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
+            INSERT INTO data_sync_log (metering_point_id, metering_point_pk, sync_type, date_from, date_to, aggregation_level, status, records_synced)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id
         `;
         const result = await this.sequelize.query(query, {
-            bind: [params.meteringPointId, params.syncType, params.dateFrom, params.dateTo, params.aggregationLevel, params.status, 0],
+            bind: [params.meteringPointId, meteringPointPk, params.syncType, params.dateFrom, params.dateTo, params.aggregationLevel, params.status, 0],
             type: this.sequelize.QueryTypes.INSERT
         });
         return result[0][0].id;

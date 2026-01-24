@@ -188,6 +188,94 @@ class AnalyticsService {
     }
 
     /**
+     * Get week-over-week comparison data
+     * Compares consumption for the same date range in different weeks
+     * @param {Object} options - Comparison options
+     * @param {string} options.dateFrom - Start date (YYYY-MM-DD)
+     * @param {string} options.dateTo - End date (YYYY-MM-DD)
+     * @param {string} options.meteringPointId - Metering point ID
+     * @returns {Promise<Array>} Array of comparison data with current and previous week values
+     */
+    async getWeekOverWeekComparison(options) {
+        const { dateFrom, dateTo, meteringPointId } = options;
+
+        try {
+            this.logger.info('Calculating week-over-week comparison', {
+                dateFrom,
+                dateTo,
+                meteringPointId
+            });
+
+            // Parse dates
+            const currentStart = new Date(dateFrom);
+            const currentEnd = new Date(dateTo);
+
+            // Calculate previous week dates (7 days prior)
+            const previousStart = new Date(currentStart);
+            previousStart.setDate(previousStart.getDate() - 7);
+
+            const previousEnd = new Date(currentEnd);
+            previousEnd.setDate(previousEnd.getDate() - 7);
+
+            const formatDate = (date) => date.toISOString().split('T')[0];
+
+            // Query current week data
+            const currentWeekQuery = `
+                SELECT 
+                    DATE(timestamp) as date,
+                    SUM(CAST(quantity AS DECIMAL)) as consumption,
+                    COUNT(*) as record_count
+                FROM consumption_data
+                WHERE metering_point_id = $1
+                    AND DATE(timestamp) BETWEEN $2 AND $3
+                GROUP BY DATE(timestamp)
+                ORDER BY DATE(timestamp)
+            `;
+
+            const currentWeekData = await this.sequelize.query(currentWeekQuery, {
+                bind: [meteringPointId, dateFrom, dateTo],
+                type: this.sequelize.QueryTypes.SELECT
+            });
+
+            // Query previous week data
+            const previousWeekQuery = `
+                SELECT 
+                    DATE(timestamp) as date,
+                    SUM(CAST(quantity AS DECIMAL)) as consumption,
+                    COUNT(*) as record_count
+                FROM consumption_data
+                WHERE metering_point_id = $1
+                    AND DATE(timestamp) BETWEEN $2 AND $3
+                GROUP BY DATE(timestamp)
+                ORDER BY DATE(timestamp)
+            `;
+
+            const previousWeekData = await this.sequelize.query(previousWeekQuery, {
+                bind: [meteringPointId, formatDate(previousStart), formatDate(previousEnd)],
+                type: this.sequelize.QueryTypes.SELECT
+            });
+
+            // Combine results
+            const result = this.combineComparisonData(currentWeekData, previousWeekData, 'week');
+
+            this.logger.info('Week-over-week comparison calculated', {
+                recordsCount: result.length,
+                dateFrom,
+                dateTo
+            });
+
+            return result;
+
+        } catch (error) {
+            this.logger.error('Error calculating week-over-week comparison', {
+                error: error.message,
+                options
+            });
+            throw new Error(`Failed to calculate week-over-week comparison: ${error.message}`);
+        }
+    }
+
+    /**
      * Calculate rolling averages for consumption data
      * @param {Object} options - Rolling average options
      * @param {string} options.dateFrom - Start date (YYYY-MM-DD)

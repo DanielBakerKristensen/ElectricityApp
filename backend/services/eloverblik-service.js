@@ -20,6 +20,7 @@ class EloverblikService {
         }
 
         try {
+            logger.info('Using Property Refresh Token to obtain new Access Token');
             logger.info('Requesting new access token from Eloverblik');
             const response = await axios.get(`${ELOVERBLIK_BASE_URL}/token`, {
                 headers: { 'Authorization': `Bearer ${refreshToken}` }

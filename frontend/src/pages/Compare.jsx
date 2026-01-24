@@ -93,6 +93,8 @@ const Compare = () => {
                 endpoint = `/api/analytics/year-over-year?dateFrom=${dateFrom}&dateTo=${dateTo}&meteringPointId=${selectedMeetingPoint.id}`;
             } else if (comparisonType === 'month_over_month') {
                 endpoint = `/api/analytics/month-over-month?dateFrom=${dateFrom}&dateTo=${dateTo}&meteringPointId=${selectedMeetingPoint.id}`;
+            } else if (comparisonType === 'week_over_week') {
+                endpoint = `/api/analytics/week-over-week?dateFrom=${dateFrom}&dateTo=${dateTo}&meteringPointId=${selectedMeetingPoint.id}`;
             }
 
             console.log('Compare feature - Sending request:', {

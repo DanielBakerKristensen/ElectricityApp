@@ -20,7 +20,8 @@ ENV NODE_ENV=production
 WORKDIR /app
 
 # Create a non-root user for security
-RUN addgroup -S nodeapp && adduser -S nodeapp -G nodeapp \
+RUN apk add --no-cache tzdata \
+    && addgroup -S nodeapp && adduser -S nodeapp -G nodeapp \
     && mkdir -p /app/logs /app/public \
     && chown -R nodeapp:nodeapp /app
 

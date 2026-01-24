@@ -18,7 +18,7 @@ router.use(userAuth);
  */
 async function resolveMeteringPointId(dbMpId, user) {
     logger.info('resolveMeteringPointId called - dbMpId: ' + dbMpId + ', userId: ' + user.id);
-    
+
     if (!dbMpId) {
         logger.info('No metering point ID provided, using default');
         // Try to get default metering point from user's first property
@@ -49,10 +49,10 @@ async function resolveMeteringPointId(dbMpId, user) {
     // Validate user ownership
     const userRecord = await User.findByPk(user.id);
     logger.info('Checking user property ownership - userId: ' + userRecord.id + ', propertyId: ' + mp.property_id);
-    
+
     const hasProperty = await userRecord.hasProperty(mp.property_id);
     logger.info('User property ownership check result - hasProperty: ' + hasProperty);
-    
+
     if (!hasProperty) {
         logger.error('User does not have access to property - userId: ' + userRecord.id + ', propertyId: ' + mp.property_id);
         return { success: false, error: 'Metering point not found' };
@@ -283,6 +283,104 @@ router.get('/month-over-month', validateDateParams, async (req, res) => {
         res.status(500).json({
             success: false,
             error: 'Failed to fetch month-over-month comparison',
+            message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        });
+    }
+});
+
+/**
+ * @swagger
+ * /api/analytics/week-over-week:
+ *   get:
+ *     summary: Get week-over-week consumption comparison
+ *     description: Compare consumption for the same date range in different weeks
+ *     tags:
+ *       - Analytics
+ *     parameters:
+ *       - in: query
+ *         name: dateFrom
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date (YYYY-MM-DD)
+ *       - in: query
+ *         name: dateTo
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date (YYYY-MM-DD)
+ *       - in: query
+ *         name: meteringPointId
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Metering point ID (uses default if not provided)
+ *     responses:
+ *       200:
+ *         description: Week-over-week comparison data
+ */
+router.get('/week-over-week', validateDateParams, async (req, res) => {
+    try {
+        const { dateFrom, dateTo, meteringPointId: dbMpId } = req.query;
+
+        // Resolve database ID to actual metering point string
+        const resolution = await resolveMeteringPointId(dbMpId, req.user);
+        if (!resolution.success) {
+            return res.status(400).json({
+                success: false,
+                error: resolution.error
+            });
+        }
+        const meteringPoint = resolution.meteringPointId;
+
+        logger.info('Fetching week-over-week comparison', {
+            dateFrom,
+            dateTo,
+            meteringPointId: meteringPoint
+        });
+
+        const analyticsService = new AnalyticsService();
+        const data = await analyticsService.getWeekOverWeekComparison({
+            dateFrom,
+            dateTo,
+            meteringPointId: meteringPoint
+        });
+
+        // Calculate summary statistics
+        const currentTotal = data.reduce((sum, d) => sum + (d.current_consumption || 0), 0);
+        const previousTotal = data.filter(d => d.previous_consumption !== null)
+            .reduce((sum, d) => sum + (d.previous_consumption || 0), 0);
+
+        const averageChange = data.filter(d => d.percentage_change !== null).length > 0
+            ? data.filter(d => d.percentage_change !== null)
+                .reduce((sum, d) => sum + d.percentage_change, 0) /
+            data.filter(d => d.percentage_change !== null).length
+            : 0;
+
+        res.json({
+            success: true,
+            data,
+            summary: {
+                current_total: Math.round(currentTotal * 100) / 100,
+                previous_total: Math.round(previousTotal * 100) / 100,
+                total_change: Math.round((currentTotal - previousTotal) * 100) / 100,
+                average_percentage_change: Math.round(averageChange * 100) / 100,
+                records_with_comparison: data.filter(d => d.has_previous_data).length,
+                total_records: data.length
+            },
+            dateRange: { from: dateFrom, to: dateTo }
+        });
+
+    } catch (error) {
+        logger.error('Error fetching week-over-week comparison', {
+            error: error.message,
+            query: req.query
+        });
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch week-over-week comparison',
             message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
         });
     }

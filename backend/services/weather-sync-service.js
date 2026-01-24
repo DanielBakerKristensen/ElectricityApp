@@ -310,7 +310,7 @@ class WeatherSyncService {
         try {
             const query = `
                 INSERT INTO data_sync_log (
-                    metering_point_id,
+                    property_id,
                     sync_type,
                     date_from,
                     date_to,
@@ -322,7 +322,7 @@ class WeatherSyncService {
             `;
 
             const values = [
-                params.propertyId, // Reuse metering_point_id field for property_id
+                params.propertyId, // Correctly using property_id column
                 params.syncType,
                 params.dateFrom,
                 params.dateTo,
